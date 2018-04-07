@@ -1,0 +1,10 @@
+{
+  "connection": "mongodb://localhost:27030/mongol",
+  "dbname": "mongol",
+  "migrations": [
+    {
+      "include": "20180318_00001/changelog.json",
+      "relativeToChangelogFile": true
+    }
+  ]
+}
