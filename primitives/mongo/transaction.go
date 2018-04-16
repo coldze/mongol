@@ -7,7 +7,6 @@ import (
 	mgo "github.com/mongodb/mongo-go-driver/mongo"
 	"github.com/mongodb/mongo-go-driver/bson"
 	"context"
-	"log"
 )
 
 type Transaction interface {
@@ -55,12 +54,10 @@ func hasError(keys bson.Keys) bool {
 }
 
 func (c *DbChanger) Apply(value *bson.Value) custom_error.CustomError {
-	log.Printf("Applying: %+v", value.MutableDocument().String())
 	reader, err := c.db.RunCommand(c.context, value.MutableDocument())
 	if err != nil {
 		return custom_error.MakeErrorf("Failed to apply change. Error: %v", err)
 	}
-	log.Print("looking")
 	keys, err := reader.Keys(true)
 	if err != nil {
 		return custom_error.MakeErrorf("Failed to get keys from response. Error: %v", err)
@@ -70,7 +67,6 @@ func (c *DbChanger) Apply(value *bson.Value) custom_error.CustomError {
 	}
 
 	el, err := reader.Lookup("writeErrors")
-	log.Printf("looking result: '%+v', %+v", el, err)
 	if err != nil {
 		return custom_error.MakeErrorf("Failed to get response. Error: %v", err)
 	}
