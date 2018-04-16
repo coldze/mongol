@@ -53,16 +53,16 @@ func main() {
 		return
 	}
 
-	tf, errValue := mongo2.NewTransactionFactory(db, context.Background(), log)
+	transactionFactory, errValue := mongo2.NewTransactionFactory(db, context.Background(), log)
 	if errValue != nil {
 		log.Fatalf("Failed to create transaction factory. Error: %v", errValue)
 		return
 	}
-	if tf == nil {
+	if transactionFactory == nil {
 		log.Fatalf("Empty Transaction-factory created.")
 		return
 	}
-	applier, errValue := mongo2.NewMongoChangeSetApplier(db, tf)
+	applier, errValue := mongo2.NewMongoChangeSetApplier(transactionFactory)
 	if errValue != nil {
 		log.Fatalf("Failed to create migration applier. Error: %v", errValue)
 		return

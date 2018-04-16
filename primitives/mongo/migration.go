@@ -3,14 +3,10 @@ package mongo
 import (
 	"bitbucket.org/4fit/mongol/migrations"
 	"bitbucket.org/4fit/mongol/primitives/custom_error"
-	mgo "github.com/mongodb/mongo-go-driver/mongo"
-	"log"
 )
 
 type changeSetApplier struct {
-	migrations       *mgo.Collection
 	startTransaction TransactionFactory
-	db               *mgo.Database
 }
 
 func (c *changeSetApplier) applyChangeFromFile(filename string) custom_error.CustomError {
@@ -21,7 +17,7 @@ func (c *changeSetApplier) Process(changeSet *migrations.ChangeSet) (result cust
 	if changeSet == nil {
 		return custom_error.MakeErrorf("Failed to apply changeset. Nil pointer provided.")
 	}
-	transaction, err := c.startTransaction()
+	transaction, err := c.startTransaction(changeSet.ID, changeSet.Hash)
 	if err != nil {
 		return custom_error.NewErrorf(err, "Failed to start transaction")
 	}
@@ -44,7 +40,6 @@ func (c *changeSetApplier) Process(changeSet *migrations.ChangeSet) (result cust
 		}
 		result = custom_error.MakeErrorf("Failed to apply changeset '%v'. Unknown error: %+v", changeSet.ID, r)
 	}()
-	log.Printf("Length of changes: %v", len(changeSet.Changes))
 	for i := range changeSet.Changes {
 		err := transaction.Apply(changeSet.Changes[i])
 		if err != nil {
@@ -68,14 +63,8 @@ func (c *changeSetApplier) Process(changeSet *migrations.ChangeSet) (result cust
 
 }
 
-func NewMongoChangeSetApplier(db *mgo.Database, startTransaction TransactionFactory) (migrations.ChangeSetProcessor, custom_error.CustomError) {
-	migrationCollection := db.Collection(collection_name_migrations_log)
-	if migrationCollection == nil {
-		return nil, custom_error.MakeErrorf("Internal error. Nulled collection returned.")
-	}
+func NewMongoChangeSetApplier(startTransaction TransactionFactory) (migrations.ChangeSetProcessor, custom_error.CustomError) {
 	return &changeSetApplier{
-		migrations:       migrationCollection,
 		startTransaction: startTransaction,
-		db:               db,
 	}, nil
 }

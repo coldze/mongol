@@ -10,6 +10,12 @@
         "include": "00001_first_migration_rollback.bjson",
         "relativeToChangelogFile": true
       }
+    },
+    {
+      "migration": {
+        "include": "00002_second_migration.bjson",
+        "relativeToChangelogFile": true
+      }
     }
   ]
 }
