@@ -5,6 +5,7 @@ import (
 	"bitbucket.org/4fit/mongol/decoding_2"
 	"bitbucket.org/4fit/mongol/migrations"
 	"bitbucket.org/4fit/mongol/primitives/custom_error"
+	mongo2 "bitbucket.org/4fit/mongol/primitives/mongo"
 	"context"
 	"flag"
 	"github.com/mongodb/mongo-go-driver/bson"
@@ -33,12 +34,54 @@ func main() {
 		log.Fatalf("Failed to load changelog. Error: %v", errValue)
 		return
 	}
-	mongoClient, err := mongo.NewClient(changeLog.Connection)
+	mongoClient, err := mongo.NewClient(changeLog.GetConnectionString())
 	if err != nil {
 		log.Fatalf("Failed to connect to mongo. Error: %v", custom_error.MakeError(err))
 		return
 	}
-	db := mongoClient.Database(changeLog.DbName)
+	db := mongoClient.Database(changeLog.GetDBName())
+
+	validator, errValue := mongo2.NewMongoChangeSetValidator(db)
+	if errValue != nil {
+		log.Fatalf("Failed to create validator. Error: %v", errValue)
+		return
+	}
+
+	errValue = changeLog.Apply(validator)
+	if errValue != nil {
+		log.Fatalf("Failed to validate changelog. Error: %v", errValue)
+		return
+	}
+
+	tf, errValue := mongo2.NewTransactionFactory(db, context.Background(), log)
+	if errValue != nil {
+		log.Fatalf("Failed to create transaction factory. Error: %v", errValue)
+		return
+	}
+	if tf == nil {
+		log.Fatalf("Empty Transaction-factory created.")
+		return
+	}
+	applier, errValue := mongo2.NewMongoChangeSetApplier(db, tf)
+	if errValue != nil {
+		log.Fatalf("Failed to create migration applier. Error: %v", errValue)
+		return
+	}
+	if applier == nil {
+		log.Fatalf("Empty migration applier created.")
+		return
+	}
+
+	log.Infof("Length: %v", len(changeLog.GetChangeSets()))
+
+	errValue = changeLog.Apply(applier)
+
+	if errValue != nil {
+		log.Fatalf("Failed to apply changes. Error: %v", errValue)
+		return
+	}
+
+	return
 
 	els := []*bson.Value{}
 	els = append(els, bson.VC.String("test01"), bson.VC.String("test02"))

@@ -1,17 +1,15 @@
 {
-  "changeSet": {
-    "id": "20180318_00001_00001",
-    "changes": [
-      {
-        "migration": {
-          "include": "00001_first_migration.bjson",
-          "relativeToChangelogFile": true
-        },
-        "rollback": {
-          "include": "00001_first_migration_rollback.bjson",
-          "relativeToChangelogFile": true
-        }
+  "id": "20180318_00001_00001",
+  "changes": [
+    {
+      "migration": {
+        "include": "00001_first_migration.bjson",
+        "relativeToChangelogFile": true
+      },
+      "rollback": {
+        "include": "00001_first_migration_rollback.bjson",
+        "relativeToChangelogFile": true
       }
-    ]
-  }
+    }
+  ]
 }

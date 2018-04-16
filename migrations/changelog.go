@@ -1,14 +1,15 @@
 package migrations
 
 import (
+	"bitbucket.org/4fit/mongol/decoding_2"
 	"bitbucket.org/4fit/mongol/primitives/custom_error"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/mongodb/mongo-go-driver/bson"
 	"hash"
-	"io"
 	"io/ioutil"
-	"os"
+	"log"
 	"path/filepath"
 )
 
@@ -25,13 +26,12 @@ type ChangeLog interface {
 	GetDBName() string
 	GetChangeSets() []*ChangeSet
 	GetChangeSetSource() ChangeSetSource
+	Apply(processor ChangeSetProcessor) custom_error.CustomError
 }
 
 type MigrationFile struct {
-	fullPath     string `json:"-"`
 	Path         string `json:"include,omitempty"`
 	RelativePath bool   `json:"relativeToChangelogFile"`
-	NewMigration MigrationFactory
 }
 
 func (m *MigrationFile) validate() custom_error.CustomError {
@@ -41,43 +41,59 @@ func (m *MigrationFile) validate() custom_error.CustomError {
 	return nil
 }
 
-func (m *MigrationFile) updatePath(workingDir string, changelogPath string) {
-	if m.RelativePath {
-		m.fullPath = filepath.Join(workingDir, m.Path)
-		return
+func getFullPath(relativePath bool, workingDir string, changelogPath string, filePath string) string {
+	if relativePath {
+		return filepath.Join(changelogPath, filePath)
 	}
-	m.fullPath = filepath.Join(changelogPath, m.Path)
+	return filepath.Join(workingDir, filePath)
 }
 
-func (m *MigrationFile) generate(workingDir string, changelogPath string, hash hash.Hash) (Migration, custom_error.CustomError) {
+func NewMigration(m *MigrationFile, workingDir string, changelogPath string, hash hash.Hash) (Migration, custom_error.CustomError) {
+	if m == nil {
+		return &DummyMigration{}, nil
+	}
 	err := m.validate()
 	if err != nil {
 		return nil, custom_error.NewErrorf(err, "Failed to generate migration")
 	}
-	m.updatePath(workingDir, changelogPath)
-	migrationContent, ioErr := ioutil.ReadFile(m.fullPath)
+	fullPath := getFullPath(m.RelativePath, workingDir, changelogPath, m.Path)
+	migrationContent, ioErr := ioutil.ReadFile(fullPath)
 	if ioErr != nil {
 		return nil, custom_error.MakeErrorf("Failed to read file '%v'. Error: %v", m.Path, ioErr)
 	}
-	hash.Write(migrationContent)
-	migration, err := m.NewMigration(migrationContent)
+	migrationDocument, err := decoding_2.Decode(migrationContent)
 	if err != nil {
-		return nil, custom_error.NewErrorf(err, "Failed to create migration")
+		return nil, custom_error.MakeErrorf("Failed to generate migration from file '%v'. Error: %v", m.Path, err)
 	}
-	return migration, custom_error.MakeErrorf("Not implemented")
+	hash.Write(migrationContent)
+	return &SimpleMigration{
+		source:            m,
+		migrationDocument: migrationDocument,
+	}, nil
+}
+
+type DocumentApplier interface {
+	Apply(value *bson.Value) custom_error.CustomError
 }
 
 type Migration interface {
-	Apply() custom_error.CustomError
+	Apply(visitor DocumentApplier) custom_error.CustomError
 }
-
-type MigrationFactory func(data []byte) (Migration, custom_error.CustomError)
 
 type DummyMigration struct {
 }
 
-func (d *DummyMigration) Apply() custom_error.CustomError {
+func (d *DummyMigration) Apply(visitor DocumentApplier) custom_error.CustomError {
 	return nil
+}
+
+type SimpleMigration struct {
+	source            *MigrationFile
+	migrationDocument *bson.Value
+}
+
+func (s *SimpleMigration) Apply(visitor DocumentApplier) custom_error.CustomError {
+	return visitor.Apply(s.migrationDocument)
 }
 
 type ChangeFile struct {
@@ -96,40 +112,27 @@ func (c *ChangeFile) validate() custom_error.CustomError {
 	return c.Backward.validate()
 }
 
-func (c *ChangeFile) updatePath(workingDir string, changelogPath string) {
-	c.Forward.updatePath(workingDir, changelogPath)
-	if c.Backward == nil {
-		return
-	}
-	c.Backward.updatePath(workingDir, changelogPath)
-}
-
-func (c *ChangeFile) generate(workingDir string, changelogPath string, hash hash.Hash) (*Change, custom_error.CustomError) {
-	forward, err := c.Forward.generate(workingDir, changelogPath, hash)
+func NewChange(c *ChangeFile, workingDir string, changelogPath string, hash hash.Hash) (*Change, custom_error.CustomError) {
+	forward, err := NewMigration(&c.Forward, workingDir, changelogPath, hash)
 	if err != nil {
 		return nil, custom_error.NewErrorf(err, "Failed to generate change. Forward migration generate process failed.")
 	}
-	var backward Migration
-	if c.Backward != nil {
-		backward, err = c.Backward.generate(workingDir, changelogPath, hash)
-		if err != nil {
-			return nil, custom_error.NewErrorf(err, "Failed to generate change. Backward migration generate process failed.")
-		}
-	} else {
-		backward = &DummyMigration{}
+	backward, err := NewMigration(c.Backward, workingDir, changelogPath, hash)
+	if err != nil {
+		return nil, custom_error.NewErrorf(err, "Failed to generate change. Backward migration generate process failed.")
 	}
 	return &Change{
 		Backward: backward,
-		Forward: forward,
-	}, custom_error.MakeErrorf("Not implemented")
+		Forward:  forward,
+	}, nil
 }
 
 type ChangeSetFile struct {
-	ID      string   `json:"id"`
+	ID      string       `json:"id"`
 	Changes []ChangeFile `json:"changes,omitempty"`
 }
 type Change struct {
-	Forward Migration
+	Forward  Migration
 	Backward Migration
 }
 
@@ -137,34 +140,6 @@ type ChangeSet struct {
 	ID      string
 	Hash    string
 	Changes []*Change
-}
-
-func (c *ChangeSet) Apply() (errResult custom_error.CustomError) {
-	rollback := []Migration{}
-	defer func() {
-		r := recover()
-		if r == nil {
-			return
-		}
-		errValue, ok := r.(custom_error.CustomError)
-		if ok {
-			errResult = errValue
-		}
-		for i := len(rollback) - 1; i >=0; i-- {
-			rollbackErr := rollback[i].Apply()
-			if rollbackErr != nil {
-				errResult = custom_error.NewErrorf(errResult, "Migration failed.")
-			}
-		}
-	}()
-	for i := range c.Changes {
-		err := c.Changes[i].Forward.Apply()
-		if err != nil {
-			panic(custom_error.NewErrorf(err, "Migration failed. Change-set: %v. Migration: %v", c.ID, i+1))
-		}
-		rollback = append(rollback, c.Changes[i].Backward)
-	}
-	return custom_error.MakeErrorf("Not implemented")
 }
 
 type mainChangeLog struct {
@@ -188,12 +163,13 @@ func loadChangeSet(path string, workingDir string) (*ChangeSet, custom_error.Cus
 	changesetHash := md5.New()
 	changes := make([]*Change, 0, len(changeSetFile.Changes))
 	for i := range changeSetFile.Changes {
-		change, errValue := changeSetFile.Changes[i].generate(workingDir, filepath.Dir(path), changeSetFile)
+		change, errValue := NewChange(&changeSetFile.Changes[i], workingDir, filepath.Dir(path), changesetHash)
 		if errValue != nil {
 			return nil, custom_error.NewErrorf(errValue, "Failed to validate changeset at path '%v'", path)
 		}
 		changes = append(changes, change)
 	}
+	log.Printf("Change-set change's length: %v", len(changes))
 	return &ChangeSet{
 		ID:      changeSetFile.ID,
 		Hash:    hex.EncodeToString(changesetHash.Sum(nil)),
@@ -217,8 +193,8 @@ func (c *mainChangeLog) validate() custom_error.CustomError {
 		if err != nil {
 			return custom_error.NewErrorf(err, "MainChangeLog format error: migrationFile #%v", i+1)
 		}
-		c.MigrationFiles[i].updatePath(c.workingDir, c.workingDir)
-		changeSet, err := loadChangeSet(c.MigrationFiles[i].fullPath, c.workingDir)
+		fullPath := getFullPath(c.MigrationFiles[i].RelativePath, c.workingDir, c.workingDir, c.MigrationFiles[i].Path)
+		changeSet, err := loadChangeSet(fullPath, c.workingDir)
 		if err != nil {
 			return custom_error.NewErrorf(err, "Failed to load migration '%v'", c.MigrationFiles[i].Path)
 		}
@@ -271,7 +247,7 @@ func NewChangeLog(path *string) (ChangeLog, custom_error.CustomError) {
 		return nil, custom_error.MakeErrorf("Failed to unmarshal changelog. Error: %v", err)
 	}
 	errValue := changeLog.validate()
-	if err != nil {
+	if errValue != nil {
 		return nil, custom_error.NewErrorf(errValue, "Changelog validation failed")
 	}
 	return &changeLog, nil

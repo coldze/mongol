@@ -4,8 +4,8 @@ import (
 	"bitbucket.org/4fit/mongol/migrations"
 	"bitbucket.org/4fit/mongol/primitives/custom_error"
 	"context"
-	"github.com/coldze/mongo-go-driver/bson"
-	mgo "github.com/coldze/mongo-go-driver/mongo"
+	"github.com/mongodb/mongo-go-driver/bson"
+	mgo "github.com/mongodb/mongo-go-driver/mongo"
 )
 
 const (
@@ -26,19 +26,25 @@ func (c *changeSetValidator) Process(changeSet *migrations.ChangeSet) custom_err
 	if changeSet == nil {
 		return custom_error.MakeErrorf("Failed to validate changeset. Nil pointer provided.")
 	}
-	res := c.migrations.FindOne(context.Background(), bson.NewDocument(bson.EC.String("change_set_id", changeSet.ID)))
-	if res == nil {
-		return nil
-	}
-	changeSetRecord := ChangeSetRecord{}
-	err := res.Decode(&changeSetRecord)
+	res, err := c.migrations.Find(context.Background(), bson.NewDocument(bson.EC.String("change_set_id", changeSet.ID)))
 	if err != nil {
-		return custom_error.MakeErrorf("Failed to get changeset. Error: %v", err)
+		return custom_error.MakeErrorf("Failed to get changeset from DB. Error: %v", err)
 	}
-	if changeSetRecord.Hash == changeSet.Hash {
-		return nil
+	if res == nil {
+		return custom_error.MakeErrorf("Failed to get changeset from DB. Empty response cursor.")
 	}
-	return custom_error.MakeErrorf("Checksum failed for changeset '%v'. Was: %v Now: %v", changeSet.ID, changeSetRecord.Hash, changeSet.Hash)
+	for res.Next(context.Background()) {
+		changeSetRecord := ChangeSetRecord{}
+		err := res.Decode(&changeSetRecord)
+		if err != nil {
+			return custom_error.MakeErrorf("Failed to get changeset from DB. Error: %v", err)
+		}
+		if changeSetRecord.Hash != changeSet.Hash {
+			return custom_error.MakeErrorf("Checksum failed for changeset '%v'. Was: %v Now: %v", changeSet.ID, changeSetRecord.Hash, changeSet.Hash)
+		}
+	}
+
+	return nil
 }
 
 func NewMongoChangeSetValidator(db *mgo.Database) (migrations.ChangeSetProcessor, custom_error.CustomError) {

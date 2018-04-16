@@ -3,8 +3,6 @@ package mongo
 import (
 	"bitbucket.org/4fit/mongol/primitives"
 	"bitbucket.org/4fit/mongol/primitives/custom_error"
-	"errors"
-	"fmt"
 )
 
 type mongoLock struct {
@@ -12,7 +10,7 @@ type mongoLock struct {
 }
 
 func Lock( /*db *mgo.Database*/ ) (primitives.SyncLock, custom_error.CustomError) {
-	if db == nil {
+	/*if db == nil {
 		return nil, custom_error.MakeErrorf("nil db-object provided")
 	}
 	locks := db.C("mongol_migration_lock")
@@ -25,6 +23,6 @@ func Lock( /*db *mgo.Database*/ ) (primitives.SyncLock, custom_error.CustomError
 	}
 	if lockCount > 0 {
 		return nil, custom_error.MakeErrorf("mongo seems to be locked")
-	}
+	}*/
 	return nil, custom_error.MakeErrorf("Not implemented")
 }

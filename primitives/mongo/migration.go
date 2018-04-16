@@ -3,8 +3,8 @@ package mongo
 import (
 	"bitbucket.org/4fit/mongol/migrations"
 	"bitbucket.org/4fit/mongol/primitives/custom_error"
-	"github.com/coldze/mongo-go-driver/bson"
-	mgo "github.com/coldze/mongo-go-driver/mongo"
+	mgo "github.com/mongodb/mongo-go-driver/mongo"
+	"log"
 )
 
 type changeSetApplier struct {
@@ -44,8 +44,9 @@ func (c *changeSetApplier) Process(changeSet *migrations.ChangeSet) (result cust
 		}
 		result = custom_error.MakeErrorf("Failed to apply changeset '%v'. Unknown error: %+v", changeSet.ID, r)
 	}()
+	log.Printf("Length of changes: %v", len(changeSet.Changes))
 	for i := range changeSet.Changes {
-		err := c.applyChangeFromFile(changeSet.Changes[i])
+		err := transaction.Apply(changeSet.Changes[i])
 		if err != nil {
 			panic(custom_error.NewErrorf(err, "Failed to apply change '%v'", changeSet.Changes[i]))
 		}
