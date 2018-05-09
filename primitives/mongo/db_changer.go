@@ -1,8 +1,8 @@
 package mongo
 
 import (
-	"bitbucket.org/4fit/mongol/engine"
-	"bitbucket.org/4fit/mongol/primitives/custom_error"
+	"github.com/coldze/mongol/engine"
+	"github.com/coldze/mongol/primitives/custom_error"
 	"context"
 	"github.com/mongodb/mongo-go-driver/bson"
 	mgo "github.com/mongodb/mongo-go-driver/mongo"

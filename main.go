@@ -1,11 +1,11 @@
 package main
 
 import (
-	"bitbucket.org/4fit/mongol/common/logs"
-	"bitbucket.org/4fit/mongol/engine"
-	"bitbucket.org/4fit/mongol/engine/decoding_2"
-	"bitbucket.org/4fit/mongol/primitives/custom_error"
-	mongo2 "bitbucket.org/4fit/mongol/primitives/mongo"
+	"github.com/coldze/mongol/common/logs"
+	"github.com/coldze/mongol/engine"
+	"github.com/coldze/mongol/engine/decoding"
+	"github.com/coldze/mongol/primitives/custom_error"
+	mongo2 "github.com/coldze/mongol/primitives/mongo"
 	"context"
 	"flag"
 	"github.com/mongodb/mongo-go-driver/bson"
@@ -92,7 +92,7 @@ func main() {
 	consV := bson.EC.Interface("test", erv)
 	log.Infof("%+v", consV.String())
 
-	decoding_2.Decode(nil)
+	decoding.Decode(nil)
 	inputFile := flag.String("input", "./test.json", "input file")
 	flag.Parse()
 	/*mongoClient, err := mongo.NewClient("mongodb://localhost:27030")
@@ -129,7 +129,7 @@ func main() {
 		return
 	}
 
-	parsedDoc, errValue := decoding_2.Decode(inputData)
+	parsedDoc, errValue := decoding.Decode(inputData)
 	if errValue != nil {
 		log.Fatalf("Failed to parse. Error: %v", errValue)
 		return

@@ -1,8 +1,8 @@
 package engine
 
 import (
-	"bitbucket.org/4fit/mongol/engine/decoding_2"
-	"bitbucket.org/4fit/mongol/primitives/custom_error"
+	"github.com/coldze/mongol/engine/decoding"
+	"github.com/coldze/mongol/primitives/custom_error"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
@@ -61,7 +61,7 @@ func NewMigration(m *MigrationFile, workingDir string, changelogPath string, has
 	if ioErr != nil {
 		return nil, custom_error.MakeErrorf("Failed to read file '%v'. Error: %v", m.Path, ioErr)
 	}
-	migrationDocument, err := decoding_2.Decode(migrationContent)
+	migrationDocument, err := decoding.Decode(migrationContent)
 	if err != nil {
 		return nil, custom_error.MakeErrorf("Failed to generate migration from file '%v'. Error: %v", m.Path, err)
 	}

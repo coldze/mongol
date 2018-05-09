@@ -1,7 +1,7 @@
-package decoding_2
+package decoding
 
 import (
-	"bitbucket.org/4fit/mongol/primitives/custom_error"
+	"github.com/coldze/mongol/primitives/custom_error"
 	"github.com/mongodb/mongo-go-driver/bson"
 	"github.com/mongodb/mongo-go-driver/bson/decimal"
 	"github.com/mongodb/mongo-go-driver/bson/objectid"

@@ -1,8 +1,8 @@
 package engine
 
 import (
-	"bitbucket.org/4fit/mongol/common/logs"
-	"bitbucket.org/4fit/mongol/primitives/custom_error"
+	"github.com/coldze/mongol/common/logs"
+	"github.com/coldze/mongol/primitives/custom_error"
 )
 
 type SimulatedTransaction struct {

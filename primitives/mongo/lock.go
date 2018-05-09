@@ -1,8 +1,8 @@
 package mongo
 
 import (
-	"bitbucket.org/4fit/mongol/primitives"
-	"bitbucket.org/4fit/mongol/primitives/custom_error"
+	"github.com/coldze/mongol/primitives"
+	"github.com/coldze/mongol/primitives/custom_error"
 )
 
 type mongoLock struct {
