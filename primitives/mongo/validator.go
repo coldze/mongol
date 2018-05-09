@@ -1,15 +1,11 @@
 package mongo
 
 import (
-	"bitbucket.org/4fit/mongol/migrations"
+	"bitbucket.org/4fit/mongol/engine"
 	"bitbucket.org/4fit/mongol/primitives/custom_error"
 	"context"
 	"github.com/mongodb/mongo-go-driver/bson"
 	mgo "github.com/mongodb/mongo-go-driver/mongo"
-)
-
-const (
-	collection_name_migrations_log = "mongol_migrations_37106118-45fe-4161-b74d-2ec5eafe9124"
 )
 
 type changeSetValidator struct {
@@ -22,7 +18,7 @@ type ChangeSetRecord struct {
 	AppliedAt string `bson:"applied_at"`
 }
 
-func (c *changeSetValidator) Process(changeSet *migrations.ChangeSet) custom_error.CustomError {
+func (c *changeSetValidator) Process(changeSet *engine.ChangeSet) custom_error.CustomError {
 	if changeSet == nil {
 		return custom_error.MakeErrorf("Failed to validate changeset. Nil pointer provided.")
 	}
@@ -47,8 +43,8 @@ func (c *changeSetValidator) Process(changeSet *migrations.ChangeSet) custom_err
 	return nil
 }
 
-func NewMongoChangeSetValidator(db *mgo.Database) (migrations.ChangeSetProcessor, custom_error.CustomError) {
-	migrationCollection := db.Collection(collection_name_migrations_log)
+func NewMongoChangeSetValidator(db *mgo.Database, collectionName string) (engine.ChangeSetProcessor, custom_error.CustomError) {
+	migrationCollection := db.Collection(collectionName)
 	if migrationCollection == nil {
 		return nil, custom_error.MakeErrorf("Internal error. Nulled collection returned.")
 	}

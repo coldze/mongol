@@ -2,8 +2,8 @@ package main
 
 import (
 	"bitbucket.org/4fit/mongol/common/logs"
-	"bitbucket.org/4fit/mongol/decoding_2"
-	"bitbucket.org/4fit/mongol/migrations"
+	"bitbucket.org/4fit/mongol/engine"
+	"bitbucket.org/4fit/mongol/engine/decoding_2"
 	"bitbucket.org/4fit/mongol/primitives/custom_error"
 	mongo2 "bitbucket.org/4fit/mongol/primitives/mongo"
 	"context"
@@ -29,7 +29,7 @@ func main() {
 	changelogConfigPath := flag.String("changelog", "./changelog.json", "Path to root changelog file")
 	flag.Parse()
 
-	changeLog, errValue := migrations.NewChangeLog(changelogConfigPath)
+	changeLog, errValue := engine.NewChangeLog(changelogConfigPath)
 	if errValue != nil {
 		log.Fatalf("Failed to load changelog. Error: %v", errValue)
 		return
@@ -41,7 +41,7 @@ func main() {
 	}
 	db := mongoClient.Database(changeLog.GetDBName())
 
-	validator, errValue := mongo2.NewMongoChangeSetValidator(db)
+	validator, errValue := mongo2.NewMongoChangeSetValidator(db, engine.COLLECTION_NAME_MIGRATIONS_LOG)
 	if errValue != nil {
 		log.Fatalf("Failed to create validator. Error: %v", errValue)
 		return
@@ -53,7 +53,10 @@ func main() {
 		return
 	}
 
-	transactionFactory, errValue := mongo2.NewTransactionFactory(db, context.Background(), log)
+	documentApplier := mongo2.NewDbChanger(db, context.Background())
+	transactionRecFactory := engine.NewTransactionRecordFactory(engine.COLLECTION_NAME_MIGRATIONS_LOG)
+
+	transactionFactory, errValue := engine.NewSimulatedTransactionFactory(documentApplier, transactionRecFactory, log)
 	if errValue != nil {
 		log.Fatalf("Failed to create transaction factory. Error: %v", errValue)
 		return
@@ -62,7 +65,7 @@ func main() {
 		log.Fatalf("Empty Transaction-factory created.")
 		return
 	}
-	applier, errValue := mongo2.NewMongoChangeSetApplier(transactionFactory)
+	applier, errValue := engine.NewChangeSetApplier(transactionFactory)
 	if errValue != nil {
 		log.Fatalf("Failed to create migration applier. Error: %v", errValue)
 		return

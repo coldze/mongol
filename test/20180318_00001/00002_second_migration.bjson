@@ -14,3 +14,6 @@
     }
   ]
 }
+
+
+{"insert": "%s", "documents":[{"change_id": "%d", "hash":"%s", "applied_at_utc": %d }]}

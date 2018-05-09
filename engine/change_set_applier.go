@@ -1,7 +1,6 @@
-package mongo
+package engine
 
 import (
-	"bitbucket.org/4fit/mongol/migrations"
 	"bitbucket.org/4fit/mongol/primitives/custom_error"
 )
 
@@ -9,11 +8,19 @@ type changeSetApplier struct {
 	startTransaction TransactionFactory
 }
 
-func (c *changeSetApplier) applyChangeFromFile(filename string) custom_error.CustomError {
-	return custom_error.MakeErrorf("Not implemented")
+func extractError(r interface{}, changeID string) custom_error.CustomError {
+	errValue, ok := r.(custom_error.CustomError)
+	if ok {
+		return errValue
+	}
+	err, ok := r.(error)
+	if ok {
+		return custom_error.MakeErrorf("Failed to apply changeset '%v'. Error: %v", changeID, err)
+	}
+	return custom_error.MakeErrorf("Failed to apply changeset '%v'. Unknown error: %+v", changeID, r)
 }
 
-func (c *changeSetApplier) Process(changeSet *migrations.ChangeSet) (result custom_error.CustomError) {
+func (c *changeSetApplier) Process(changeSet *ChangeSet) (result custom_error.CustomError) {
 	if changeSet == nil {
 		return custom_error.MakeErrorf("Failed to apply changeset. Nil pointer provided.")
 	}
@@ -24,21 +31,16 @@ func (c *changeSetApplier) Process(changeSet *migrations.ChangeSet) (result cust
 	defer func() {
 		r := recover()
 		if r == nil {
-			transaction.Commit()
-			return
+			commitErr := transaction.Commit()
+			if commitErr == nil {
+				return
+			}
 		}
-		transaction.Rollback()
-		errValue, ok := r.(custom_error.CustomError)
-		if ok {
-			result = errValue
-			return
+		result = extractError(r, changeSet.ID)
+		rollbackErr := transaction.Rollback()
+		if rollbackErr != nil {
+			result = custom_error.NewErrorf(rollbackErr, "Failed to rollback changeset with ID '%v' after error during application. Application error: %v", result)
 		}
-		err, ok := r.(error)
-		if ok {
-			result = custom_error.MakeErrorf("Failed to apply changeset '%v'. Error: %v", changeSet.ID, err)
-			return
-		}
-		result = custom_error.MakeErrorf("Failed to apply changeset '%v'. Unknown error: %+v", changeSet.ID, r)
 	}()
 	for i := range changeSet.Changes {
 		err := transaction.Apply(changeSet.Changes[i])
@@ -63,7 +65,7 @@ func (c *changeSetApplier) Process(changeSet *migrations.ChangeSet) (result cust
 
 }
 
-func NewMongoChangeSetApplier(startTransaction TransactionFactory) (migrations.ChangeSetProcessor, custom_error.CustomError) {
+func NewChangeSetApplier(startTransaction TransactionFactory) (ChangeSetProcessor, custom_error.CustomError) {
 	return &changeSetApplier{
 		startTransaction: startTransaction,
 	}, nil

@@ -1,7 +1,7 @@
-package migrations
+package engine
 
 import (
-	"bitbucket.org/4fit/mongol/decoding_2"
+	"bitbucket.org/4fit/mongol/engine/decoding_2"
 	"bitbucket.org/4fit/mongol/primitives/custom_error"
 	"crypto/md5"
 	"encoding/hex"

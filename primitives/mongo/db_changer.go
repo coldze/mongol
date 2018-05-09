@@ -1,42 +1,15 @@
 package mongo
 
 import (
-	"bitbucket.org/4fit/mongol/common/logs"
-	"bitbucket.org/4fit/mongol/migrations"
+	"bitbucket.org/4fit/mongol/engine"
 	"bitbucket.org/4fit/mongol/primitives/custom_error"
-	mgo "github.com/mongodb/mongo-go-driver/mongo"
-	"github.com/mongodb/mongo-go-driver/bson"
 	"context"
+	"github.com/mongodb/mongo-go-driver/bson"
+	mgo "github.com/mongodb/mongo-go-driver/mongo"
 )
 
-type Transaction interface {
-	Commit()
-	Apply(changeSet *migrations.Change) custom_error.CustomError
-	Rollback() custom_error.CustomError
-}
-
-type TransactionFactory func(changeID string, hashValue string) (Transaction, custom_error.CustomError)
-
-type transactionDummy struct {
-	log logs.Logger
-}
-
-func (t *transactionDummy) Commit() {
-	t.log.Infof("Transaction commit")
-}
-
-func (t *transactionDummy) Apply(change *migrations.Change) custom_error.CustomError {
-	t.log.Infof("Applying change.")
-	return nil
-}
-
-func (t *transactionDummy) Rollback() custom_error.CustomError {
-	t.log.Infof("Transaction rollback")
-	return nil
-}
-
 type DbChanger struct {
-	db *mgo.Database
+	db      *mgo.Database
 	context context.Context
 }
 
@@ -111,59 +84,14 @@ func (c *DbChanger) Apply(value *bson.Value) custom_error.CustomError {
 	return nil
 }
 
-type SimulatedTransaction struct {
-	log logs.Logger
-	dbChanger migrations.DocumentApplier
-	rollbacks []migrations.Migration
-	changeID string
-	hashValue string
-	migrations *mgo.Collection
-}
-
-func (t *SimulatedTransaction) Commit() {
-	//t.migrations.InsertOne(t.context, document)
-	t.log.Infof("Transaction commit")
-}
-
-func (t *SimulatedTransaction) Apply(change *migrations.Change) custom_error.CustomError {
-	t.log.Infof("Applying change.")
-	err := change.Forward.Apply(t.dbChanger)
-	if err != nil {
-		return err
-	}
-	t.rollbacks = append(t.rollbacks, change.Backward)
-	return nil
-}
-
-func (t *SimulatedTransaction) Rollback() custom_error.CustomError {
-	t.log.Infof("Transaction rollback")
-	for i := len(t.rollbacks) - 1; i >= 0; i-- {
-		err := t.rollbacks[i].Apply(t.dbChanger)
-		if err != nil {
-			return custom_error.MakeErrorf("Failed to rollback. Error: %v", err)
-		}
-	}
-	return nil
-}
-
-
-func NewTransactionFactory(db *mgo.Database, context context.Context, log logs.Logger) (TransactionFactory, custom_error.CustomError) {
-	migrationCollection := db.Collection(collection_name_migrations_log)
+func NewDbChanger(db *mgo.Database, context context.Context) engine.DocumentApplier {
+	/*migrationCollection := db.Collection(collection_name_migrations_log)
 	if migrationCollection == nil {
 		return nil, custom_error.MakeErrorf("Internal error. Nulled collection returned.")
-	}
+	}*/
 	dbChanger := &DbChanger{
 		context: context,
-		db: db,
+		db:      db,
 	}
-	return func(changeID string, hashValue string) (Transaction, custom_error.CustomError) {
-		return &SimulatedTransaction{
-			changeID: changeID,
-			hashValue: hashValue,
-			migrations: migrationCollection,
-			log: log,
-			dbChanger: dbChanger,
-			rollbacks: []migrations.Migration{},
-		}, nil
-	}, nil
+	return dbChanger
 }
