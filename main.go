@@ -34,11 +34,13 @@ func main() {
 		log.Fatalf("Failed to load changelog. Error: %v", errValue)
 		return
 	}
-	mongoClient, err := mongo.NewClient(changeLog.GetConnectionString())
+	ctx := context.Background()
+	mongoClient, err := mongo.Connect(ctx, changeLog.GetConnectionString(), nil)
 	if err != nil {
 		log.Fatalf("Failed to connect to mongo. Error: %v", custom_error.MakeError(err))
 		return
 	}
+	defer mongoClient.Disconnect(ctx)
 	db := mongoClient.Database(changeLog.GetDBName())
 
 	validator, errValue := mongo2.NewMongoChangeSetValidator(db, engine.COLLECTION_NAME_MIGRATIONS_LOG)
