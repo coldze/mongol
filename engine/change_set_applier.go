@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"github.com/coldze/mongol/primitives/custom_error"
+	"github.com/coldze/primitives/custom_error"
 )
 
 type changeSetApplier struct {

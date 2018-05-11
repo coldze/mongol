@@ -1,11 +1,11 @@
 package engine
 
 import (
-	"github.com/coldze/mongol/engine/decoding"
-	"github.com/coldze/mongol/primitives/custom_error"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/coldze/mongol/engine/decoding"
+	"github.com/coldze/primitives/custom_error"
 	"github.com/mongodb/mongo-go-driver/bson"
 	"hash"
 	"io/ioutil"

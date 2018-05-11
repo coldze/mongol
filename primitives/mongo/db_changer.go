@@ -1,9 +1,9 @@
 package mongo
 
 import (
-	"github.com/coldze/mongol/engine"
-	"github.com/coldze/mongol/primitives/custom_error"
 	"context"
+	"github.com/coldze/mongol/engine"
+	"github.com/coldze/primitives/custom_error"
 	"github.com/mongodb/mongo-go-driver/bson"
 	mgo "github.com/mongodb/mongo-go-driver/mongo"
 )

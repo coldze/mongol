@@ -1,16 +1,16 @@
 package engine
 
 import (
-	"github.com/coldze/mongol/engine/decoding"
-	"github.com/coldze/mongol/primitives/custom_error"
 	"fmt"
+	"github.com/coldze/mongol/engine/decoding"
+	"github.com/coldze/primitives/custom_error"
 	"github.com/mongodb/mongo-go-driver/bson"
 	"time"
 )
 
 const (
 	COLLECTION_NAME_MIGRATIONS_LOG = "mongol_migrations_3710611845fe4161b74d2ec5eafe9124"
-	transaction_record_format = "{\"insert\": \"%s\", \"documents\":[{\"change_id\": \"%%s\", \"hash\":\"%%s\", \"applied_at_utc\": %%d }]}"
+	transaction_record_format      = "{\"insert\": \"%s\", \"documents\":[{\"change_id\": \"%%s\", \"hash\":\"%%s\", \"applied_at_utc\": %%d }]}"
 )
 
 type TransactionRecordFactory func(changeID string, hashValue string) (*bson.Value, custom_error.CustomError)
