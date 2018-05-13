@@ -9,7 +9,6 @@ import (
 	"github.com/mongodb/mongo-go-driver/bson"
 	"hash"
 	"io/ioutil"
-	"log"
 	"path/filepath"
 )
 
@@ -169,7 +168,6 @@ func loadChangeSet(path string, workingDir string) (*ChangeSet, custom_error.Cus
 		}
 		changes = append(changes, change)
 	}
-	log.Printf("Change-set change's length: %v", len(changes))
 	return &ChangeSet{
 		ID:      changeSetFile.ID,
 		Hash:    hex.EncodeToString(changesetHash.Sum(nil)),
@@ -230,17 +228,17 @@ func (c *mainChangeLog) Apply(processor ChangeSetProcessor) custom_error.CustomE
 	return nil
 }
 
-func NewChangeLog(path *string) (ChangeLog, custom_error.CustomError) {
-	if (path == nil) || len(*path) <= 0 {
+func NewChangeLog(path string) (ChangeLog, custom_error.CustomError) {
+	if len(path) <= 0 {
 		return nil, custom_error.MakeErrorf("Input changelog path is empty. Internal error.")
 	}
 
-	changeLogData, err := ioutil.ReadFile(*path)
+	changeLogData, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, custom_error.MakeErrorf("Failed to open changelog file. Error: %v", err)
 	}
 	changeLog := mainChangeLog{
-		workingDir: filepath.Dir(*path),
+		workingDir: filepath.Dir(path),
 	}
 	err = json.Unmarshal(changeLogData, &changeLog)
 	if err != nil {

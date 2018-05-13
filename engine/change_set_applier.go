@@ -29,23 +29,29 @@ func (c *changeSetApplier) Process(changeSet *ChangeSet) (result custom_error.Cu
 		return custom_error.NewErrorf(err, "Failed to start transaction")
 	}
 	defer func() {
-		r := recover()
-		if r == nil {
+		if result == nil {
 			commitErr := transaction.Commit()
 			if commitErr == nil {
 				return
 			}
 		}
-		result = extractError(r, changeSet.ID)
 		rollbackErr := transaction.Rollback()
 		if rollbackErr != nil {
 			result = custom_error.NewErrorf(rollbackErr, "Failed to rollback changeset with ID '%v' after error during application. Application error: %v", result)
 		}
 	}()
+
+	defer func() {
+		r := recover()
+		if r != nil {
+			result = extractError(r, changeSet.ID)
+			return
+		}
+	}()
 	for i := range changeSet.Changes {
 		err := transaction.Apply(changeSet.Changes[i])
 		if err != nil {
-			panic(custom_error.NewErrorf(err, "Failed to apply change '%v'", changeSet.Changes[i]))
+			panic(custom_error.NewErrorf(err, "Failed to apply change '%v'. Change #: %v", changeSet.ID, i+1))
 		}
 	}
 	return nil
