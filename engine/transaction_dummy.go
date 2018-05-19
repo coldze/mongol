@@ -1,8 +1,8 @@
 package engine
 
 import (
-	"github.com/coldze/mongol/common/logs"
 	"github.com/coldze/primitives/custom_error"
+	"github.com/coldze/primitives/logs"
 )
 
 type transactionDummy struct {

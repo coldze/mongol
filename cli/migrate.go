@@ -2,7 +2,7 @@ package cli
 
 import (
 	"github.com/coldze/mongol/commands"
-	"github.com/coldze/mongol/common/logs"
+	"github.com/coldze/primitives/logs"
 	"github.com/spf13/cobra"
 )
 

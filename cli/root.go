@@ -2,8 +2,8 @@ package cli
 
 import (
 	"fmt"
-	"github.com/coldze/mongol/common/logs"
 	"github.com/coldze/primitives/custom_error"
+	"github.com/coldze/primitives/logs"
 	"github.com/spf13/cobra"
 )
 

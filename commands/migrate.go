@@ -2,10 +2,10 @@ package commands
 
 import (
 	"context"
-	"github.com/coldze/mongol/common/logs"
 	"github.com/coldze/mongol/engine"
 	"github.com/coldze/mongol/primitives/mongo"
 	"github.com/coldze/primitives/custom_error"
+	"github.com/coldze/primitives/logs"
 	mgo "github.com/mongodb/mongo-go-driver/mongo"
 )
 

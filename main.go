@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/coldze/mongol/cli"
-	"github.com/coldze/mongol/common/logs"
+	"github.com/coldze/primitives/logs"
 	"os"
 )
 
