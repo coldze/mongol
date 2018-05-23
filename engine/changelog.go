@@ -4,12 +4,13 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
-	"github.com/coldze/mongol/engine/decoding"
-	"github.com/coldze/primitives/custom_error"
-	"github.com/mongodb/mongo-go-driver/bson"
 	"hash"
 	"io/ioutil"
 	"path/filepath"
+
+	"github.com/coldze/mongol/engine/decoding"
+	"github.com/coldze/primitives/custom_error"
+	"github.com/mongodb/mongo-go-driver/bson"
 )
 
 type ChangeSetProcessor interface {

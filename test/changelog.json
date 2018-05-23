@@ -5,6 +5,10 @@
     {
       "include": "20180318_00001/changelog.json",
       "relativeToChangelogFile": true
+    },
+    {
+      "include": "20180523_00001/changelog.json",
+      "relativeToChangelogFile": true
     }
   ]
 }

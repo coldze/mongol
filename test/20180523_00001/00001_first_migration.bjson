@@ -1,8 +1,7 @@
 {
-  "insert": "std3",
-  "documents":[
-    {
-      "name": "Test value",
+  "create": "std4",
+  "validator":{
+    "$jsonSchema":{
       "bsonType":"object",
       "required":["name"],
       "properties":{
@@ -12,5 +11,7 @@
         }
       }
     }
-  ]
+  }
 }
+
+

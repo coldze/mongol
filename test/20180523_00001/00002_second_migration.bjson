@@ -1,8 +1,8 @@
 {
-  "insert": "std3",
+  "insert": "std4",
   "documents":[
     {
-      "name": "Test value",
+      "name": "Test value 2",
       "bsonType":"object",
       "required":["name"],
       "properties":{
