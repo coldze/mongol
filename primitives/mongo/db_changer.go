@@ -5,7 +5,6 @@ import (
 
 	"github.com/coldze/mongol/engine"
 	"github.com/coldze/primitives/custom_error"
-	"github.com/mongodb/mongo-go-driver/bson"
 	mgo "github.com/mongodb/mongo-go-driver/mongo"
 )
 
@@ -18,33 +17,18 @@ type WriteOperationsError struct {
 	Errors interface{} `bson:"writeErrors,omitempty"`
 }
 
-func hasError(keys bson.Keys) bool {
-	for i := range keys {
-		if keys[i].Name == "writeErrors" {
-			return true
-		}
-	}
-	return false
-}
-
-func (c *DbChanger) Apply(value *bson.Value) custom_error.CustomError {
-	reader, err := c.db.RunCommand(c.context, value.MutableDocument())
+func (c *DbChanger) Apply(value interface{}) custom_error.CustomError {
+	reader, err := c.db.RunCommand(c.context, value)
 	if err != nil {
 		return custom_error.MakeErrorf("Failed to apply change. Error: %v", err)
 	}
-	keys, err := reader.Keys(true)
+
+	el, err := reader.LookupErr("writeErrors")
 	if err != nil {
-		return custom_error.MakeErrorf("Failed to get keys from response. Error: %v", err)
-	}
-	if !hasError(keys) {
 		return nil
 	}
-
-	el, err := reader.Lookup("writeErrors")
+	err = el.Validate()
 	if err != nil {
-		return custom_error.MakeErrorf("Failed to get response. Error: %v", err)
-	}
-	if el != nil {
 		return custom_error.MakeErrorf("Failed to apply. Error: %+v", el.String())
 	}
 	return nil

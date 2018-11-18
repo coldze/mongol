@@ -5,7 +5,6 @@ import (
 
 	"github.com/coldze/mongol/engine"
 	"github.com/coldze/primitives/custom_error"
-	"github.com/mongodb/mongo-go-driver/bson"
 	mgo "github.com/mongodb/mongo-go-driver/mongo"
 )
 
@@ -27,7 +26,7 @@ func (c *changeSetValidator) Process(changeSet *engine.ChangeSet) custom_error.C
 	if changeSet == nil {
 		return custom_error.MakeErrorf("Failed to validate changeset. Nil pointer provided.")
 	}
-	res, err := c.migrations.Find(context.Background(), bson.NewDocument(bson.EC.String("change_id", changeSet.ID)))
+	res, err := c.migrations.Find(context.Background(), map[string]interface{}{"change_id": changeSet.ID})
 	if err != nil {
 		return custom_error.MakeErrorf("Failed to get changeset from DB. Error: %v", err)
 	}

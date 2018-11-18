@@ -2,9 +2,9 @@ package decoding
 
 import (
 	"github.com/coldze/primitives/custom_error"
-	"github.com/mongodb/mongo-go-driver/bson"
 	"github.com/mongodb/mongo-go-driver/bson/decimal"
 	"github.com/mongodb/mongo-go-driver/bson/objectid"
+	"github.com/mongodb/mongo-go-driver/bson/primitive"
 	"strconv"
 	"strings"
 	"time"
@@ -45,7 +45,7 @@ type Object struct {
 	Type       int64
 }
 
-func Decode(data []byte) (*bson.Value, custom_error.CustomError) {
+func Decode(data []byte) (interface{}, custom_error.CustomError) {
 	res, _, err := parseAny(data)
 	if err != nil {
 		return nil, custom_error.NewErrorf(err, "Failed to decode data")
@@ -117,7 +117,7 @@ func extractString(in []byte, ending byte) (*string, []byte, custom_error.Custom
 	return nil, nil, custom_error.MakeErrorf("Invalid format")
 }
 
-func parseString(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
+func parseString(in []byte) (interface{}, []byte, custom_error.CustomError) {
 	v, data, err := extractString(in, SYMBOL_QUOTE)
 	if err != nil {
 		return nil, nil, custom_error.NewErrorf(err, "Failed to parse string")
@@ -125,7 +125,7 @@ func parseString(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
 	if v == nil {
 		return nil, nil, custom_error.MakeErrorf("Failed to parse string: empty data")
 	}
-	return bson.VC.String(*v), data, err
+	return *v, data, err
 }
 
 func extractNumber(in []byte) (*string, []byte, custom_error.CustomError) {
@@ -147,7 +147,7 @@ func extractNumber(in []byte) (*string, []byte, custom_error.CustomError) {
 	return nil, nil, custom_error.MakeErrorf("Invalid format")
 }
 
-func parseNumber(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
+func parseNumber(in []byte) (interface{}, []byte, custom_error.CustomError) {
 	s, data, errValue := extractNumber(in)
 	if errValue != nil {
 		return nil, nil, custom_error.NewErrorf(errValue, "Failed to parse number")
@@ -156,10 +156,10 @@ func parseNumber(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
 	if err != nil {
 		return nil, nil, custom_error.NewErrorf(custom_error.MakeError(err), "Failed to parse number")
 	}
-	return bson.VC.Double(floatValue), data, nil
+	return floatValue, data, nil
 }
 
-func parseDatetime(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
+func parseDatetime(in []byte) (interface{}, []byte, custom_error.CustomError) {
 	dateStr, data, err := extractString(in, ')')
 	if err != nil {
 		return nil, nil, custom_error.NewErrorf(err, "Failed to parse date-time")
@@ -187,7 +187,7 @@ func parseDatetime(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
 	if errValue != nil {
 		return nil, nil, custom_error.MakeError(err)
 	}
-	return bson.VC.DateTime(timeValue.Unix() / 1000000), data, nil
+	return primitive.DateTime(timeValue.Unix() / 1000000), data, nil
 }
 
 func extractTypedInt(in []byte) (int64, []byte, custom_error.CustomError) {
@@ -205,23 +205,23 @@ func extractTypedInt(in []byte) (int64, []byte, custom_error.CustomError) {
 	return intValue, data, nil
 }
 
-func parseInt64(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
+func parseInt64(in []byte) (interface{}, []byte, custom_error.CustomError) {
 	res, data, err := extractTypedInt(in)
 	if err != nil {
 		return nil, nil, custom_error.NewErrorf(err, "Failed to parse int64")
 	}
-	return bson.VC.Int64(res), data, nil
+	return res, data, nil
 }
 
-func parseInt32(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
+func parseInt32(in []byte) (interface{}, []byte, custom_error.CustomError) {
 	res, data, err := extractTypedInt(in)
 	if err != nil {
 		return nil, nil, custom_error.NewErrorf(err, "Failed to parse int64")
 	}
-	return bson.VC.Int32(int32(res)), data, nil
+	return int32(res), data, nil
 }
 
-func parseDecimal128(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
+func parseDecimal128(in []byte) (interface{}, []byte, custom_error.CustomError) {
 	strValue, data, err := extractString(in, ')')
 	if err != nil {
 		return nil, nil, custom_error.NewErrorf(err, "Failed to parse decimal128")
@@ -233,10 +233,10 @@ func parseDecimal128(in []byte) (*bson.Value, []byte, custom_error.CustomError) 
 	if errValue != nil {
 		return nil, nil, custom_error.NewErrorf(custom_error.MakeError(errValue), "Failed to parse decimal128")
 	}
-	return bson.VC.Decimal128(decimalValue), data, nil
+	return decimalValue, data, nil
 }
 
-func parseTimestamp(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
+func parseTimestamp(in []byte) (interface{}, []byte, custom_error.CustomError) {
 	p1, data, err := extractNumber(in)
 	if err != nil {
 		return nil, nil, custom_error.NewErrorf(err, "Failed to parse timestamp")
@@ -266,12 +266,12 @@ func parseTimestamp(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
 	if errValue != nil {
 		return nil, nil, custom_error.MakeError(errValue)
 	}
-	return bson.VC.Timestamp(uint32(p1value), uint32(p2value)), data, nil
+	return primitive.Timestamp{T: uint32(p1value), I: uint32(p2value)}, data, nil
 }
 
-type parsingFunc func(in []byte) (*bson.Value, []byte, custom_error.CustomError)
+type parsingFunc func(in []byte) (interface{}, []byte, custom_error.CustomError)
 
-func parseSpecial(in []byte, expected string, parse parsingFunc) (*bson.Value, []byte, custom_error.CustomError) {
+func parseSpecial(in []byte, expected string, parse parsingFunc) (interface{}, []byte, custom_error.CustomError) {
 	data := in
 	expectedLength := len(expected)
 	if len(data) < expectedLength+3 {
@@ -280,7 +280,7 @@ func parseSpecial(in []byte, expected string, parse parsingFunc) (*bson.Value, [
 	if string(data[:expectedLength]) != expected && (data[expectedLength] != '(') {
 		return nil, nil, custom_error.MakeErrorf("Invalid format")
 	}
-	var v *bson.Value
+	var v interface{}
 	var err custom_error.CustomError
 	v, data, err = parse(data[expectedLength+1:])
 	if err != nil {
@@ -293,7 +293,7 @@ func parseSpecial(in []byte, expected string, parse parsingFunc) (*bson.Value, [
 	return v, data[1:], nil
 }
 
-func parseObjectID(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
+func parseObjectID(in []byte) (interface{}, []byte, custom_error.CustomError) {
 	data := skipEmpty(in)
 	if len(data) < 2 {
 		return nil, nil, custom_error.MakeErrorf("Invalid format")
@@ -309,10 +309,10 @@ func parseObjectID(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
 	if errValue != nil {
 		return nil, nil, custom_error.NewErrorf(custom_error.MakeError(err), "Failed to parse ObjectID")
 	}
-	return bson.VC.ObjectID(v), data, nil
+	return v, data, nil
 }
 
-func parseAny(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
+func parseAny(in []byte) (interface{}, []byte, custom_error.CustomError) {
 	data := skipEmpty(in)
 	if len(data) <= 0 {
 		return nil, nil, custom_error.MakeErrorf("Invalid format")
@@ -373,7 +373,7 @@ func parseAny(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
 		}
 	case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		{
-			var v *bson.Value
+			var v interface{}
 			v, data, err = parseNumber(data[:])
 			if err != nil {
 				return nil, nil, custom_error.NewErrorf(err, "Invalid format.")
@@ -386,7 +386,7 @@ func parseAny(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
 				return nil, nil, custom_error.MakeErrorf("Invalid format")
 			}
 			if string(data[:5]) == "false" {
-				return bson.VC.Boolean(false), data[5:], nil
+				return false, data[5:], nil
 			}
 			return nil, nil, custom_error.MakeErrorf("Invalid format")
 		}
@@ -403,7 +403,7 @@ func parseAny(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
 				return parseSpecial(data, "timestamp", parseTimestamp)
 			}
 			if string(data[:4]) == "true" {
-				return bson.VC.Boolean(true), data[4:], nil
+				return true, data[4:], nil
 			}
 			return nil, nil, custom_error.MakeErrorf("Invalid format")
 		}
@@ -413,7 +413,7 @@ func parseAny(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
 				return nil, nil, custom_error.MakeErrorf("Invalid format")
 			}
 			if string(data[:4]) == "null" {
-				return bson.VC.Null(), data[4:], nil
+				return primitive.Null{}, data[4:], nil
 			}
 			return nil, nil, custom_error.MakeErrorf("Invalid format")
 		}
@@ -431,15 +431,15 @@ func parseAny(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
 	return nil, in, custom_error.MakeErrorf("Not implemented")
 }
 
-func parseObject(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
+func parseObject(in []byte) (interface{}, []byte, custom_error.CustomError) {
 	data := skipEmpty(in)
 	if len(data) <= 0 {
 		return nil, nil, custom_error.MakeErrorf("Invalid format")
 	}
 	if data[0] == SYMBOL_CURL_BRACER_CLOSE {
-		return bson.VC.DocumentFromElements(), data[1:], nil
+		return map[string]interface{}{}, data[1:], nil
 	}
-	res := []*bson.Element{}
+	res := map[string]interface{}{}
 	for {
 		if data[0] != SYMBOL_QUOTE {
 			return nil, nil, custom_error.MakeErrorf("Invalid format")
@@ -460,7 +460,7 @@ func parseObject(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
 		if data[0] != SYMBOL_DOUBLE_DOT {
 			return nil, nil, custom_error.MakeErrorf("Invalid format")
 		}
-		var value *bson.Value
+		var value interface{}
 		value, data, err = parseAny(data[1:])
 		if err != nil {
 			return nil, nil, custom_error.NewErrorf(err, "Failed to parse value for key in map")
@@ -469,15 +469,15 @@ func parseObject(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
 		if len(data) <= 0 {
 			return nil, nil, custom_error.MakeErrorf("Invalid format")
 		}
-		element, errValue := bson.EC.InterfaceErr(*key, value)
-		if errValue != nil {
-			return nil, nil, custom_error.NewErrorf(custom_error.MakeError(errValue), "Failed to parse object")
+		_, ok := res[*key]
+		if ok {
+			return nil, nil, custom_error.MakeErrorf("Dublicated key: %v", *key)
 		}
-		res = append(res, element)
+		res[*key] = value
 		switch data[0] {
 		case SYMBOL_CURL_BRACER_CLOSE:
 			{
-				return bson.VC.DocumentFromElements(res...), data[1:], nil
+				return res, data[1:], nil
 			}
 		case SYMBOL_COMMA:
 			{
@@ -494,18 +494,18 @@ func parseObject(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
 	//key, data, err := parseString(data[1:])
 }
 
-func parseArray(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
+func parseArray(in []byte) (interface{}, []byte, custom_error.CustomError) {
 	data := skipEmpty(in)
 	if len(data) <= 0 {
 		return nil, nil, custom_error.MakeErrorf("Invalid format")
 	}
 	if data[0] == SYMBOL_BRACER_CLOSE {
-		return bson.VC.ArrayFromValues(), data[1:], nil
+		return []interface{}{}, data[1:], nil
 	}
-	res := []*bson.Value{}
+	res := []interface{}{}
 
 	for {
-		var value *bson.Value
+		var value interface{}
 		var err custom_error.CustomError
 		value, data, err = parseAny(data)
 		if err != nil {
@@ -519,8 +519,7 @@ func parseArray(in []byte) (*bson.Value, []byte, custom_error.CustomError) {
 		switch data[0] {
 		case SYMBOL_BRACER_CLOSE:
 			{
-				arrValue := bson.VC.ArrayFromValues(res...)
-				return arrValue, data[1:], nil
+				return res, data[1:], nil
 			}
 		case SYMBOL_COMMA:
 			{

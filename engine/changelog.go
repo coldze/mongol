@@ -10,7 +10,6 @@ import (
 
 	"github.com/coldze/mongol/engine/decoding"
 	"github.com/coldze/primitives/custom_error"
-	"github.com/mongodb/mongo-go-driver/bson"
 )
 
 type ChangeSetProcessor interface {
@@ -61,7 +60,7 @@ func NewMigration(m *MigrationFile, workingDir string, changelogPath string, has
 	if ioErr != nil {
 		return nil, custom_error.MakeErrorf("Failed to read file '%v'. Error: %v", m.Path, ioErr)
 	}
-	migrationDocument, err := decoding.Decode(migrationContent)
+	migrationDocument, err := decoding.DecodeExt(migrationContent)
 	if err != nil {
 		return nil, custom_error.MakeErrorf("Failed to generate migration from file '%v'. Error: %v", m.Path, err)
 	}
@@ -73,7 +72,7 @@ func NewMigration(m *MigrationFile, workingDir string, changelogPath string, has
 }
 
 type DocumentApplier interface {
-	Apply(value *bson.Value) custom_error.CustomError
+	Apply(value interface{}) custom_error.CustomError
 }
 
 type Migration interface {
@@ -89,7 +88,7 @@ func (d *DummyMigration) Apply(visitor DocumentApplier) custom_error.CustomError
 
 type SimpleMigration struct {
 	source            *MigrationFile
-	migrationDocument *bson.Value
+	migrationDocument interface{}
 }
 
 func (s *SimpleMigration) Apply(visitor DocumentApplier) custom_error.CustomError {

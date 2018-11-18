@@ -9,10 +9,10 @@ import (
 func main() {
 	logger := logs.NewStdLogger()
 	app := cli.NewCliApp(logger)
-	err := app.Run()
-	if err == nil {
+	errC := app.Run()
+	if errC == nil {
 		return
 	}
-	logger.Fatalf("App run failed with error: %v", err)
+	logger.Fatalf("App run failed with error: %v", errC)
 	os.Exit(1)
 }
