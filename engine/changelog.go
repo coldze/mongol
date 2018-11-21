@@ -57,18 +57,19 @@ func NewMigration(m *MigrationFile, workingDir string, changelogPath string, has
 		return nil, custom_error.NewErrorf(err, "Failed to generate migration")
 	}
 	fullPath := getFullPath(m.RelativePath, workingDir, changelogPath, m.Path)
-	migrationContent, ioErr := ioutil.ReadFile(fullPath)
+	migrationRawContent, ioErr := ioutil.ReadFile(fullPath)
 	if ioErr != nil {
 		return nil, custom_error.MakeErrorf("Failed to read file '%v'. Error: %v", m.Path, ioErr)
 	}
-	migrationDocument, err := decoding.DecodeExt(migrationContent)
+	migrationContent, err := decoding.DecodeMigration(migrationRawContent)
+
 	if err != nil {
 		return nil, custom_error.MakeErrorf("Failed to generate migration from file '%v'. Error: %v", m.Path, err)
 	}
-	hash.Write(migrationContent)
+	hash.Write(migrationRawContent)
 	return &SimpleMigration{
-		source:            m,
-		migrationDocument: migrationDocument,
+		source:   m,
+		commands: migrationContent,
 	}, nil
 }
 
@@ -88,12 +89,18 @@ func (d *DummyMigration) Apply(visitor DocumentApplier) custom_error.CustomError
 }
 
 type SimpleMigration struct {
-	source            *MigrationFile
-	migrationDocument interface{}
+	source   *MigrationFile
+	commands []interface{}
 }
 
 func (s *SimpleMigration) Apply(visitor DocumentApplier) custom_error.CustomError {
-	return visitor.Apply(s.migrationDocument)
+	for i := range s.commands {
+		err := visitor.Apply(s.commands[i])
+		if err != nil {
+			return custom_error.NewErrorf(err, "Failed to apply command: %v", s.commands[i])
+		}
+	}
+	return nil
 }
 
 type ChangeFile struct {
