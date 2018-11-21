@@ -4,8 +4,11 @@ import (
 	"github.com/coldze/primitives/custom_error"
 )
 
+type changeSetApplierStrategy func(changes []*Change, transaction Transaction) custom_error.CustomError
+
 type changeSetApplier struct {
 	startTransaction TransactionFactory
+	strategy         changeSetApplierStrategy
 }
 
 func extractError(r interface{}, changeID string) custom_error.CustomError {
@@ -18,6 +21,26 @@ func extractError(r interface{}, changeID string) custom_error.CustomError {
 		return custom_error.MakeErrorf("Failed to apply changeset '%v'. Error: %v", changeID, err)
 	}
 	return custom_error.MakeErrorf("Failed to apply changeset '%v'. Unknown error: %+v", changeID, r)
+}
+
+func forwardChangeSetApplierStrategy(changes []*Change, transaction Transaction) custom_error.CustomError {
+	for i := range changes {
+		err := transaction.Apply(changes[i])
+		if err != nil {
+			return custom_error.NewErrorf(err, "Failed to apply change '%v'.", changes[i].ID)
+		}
+	}
+	return nil
+}
+
+func backwardChangeSetApplierStrategy(changes []*Change, transaction Transaction) custom_error.CustomError {
+	for i := len(changes) - 1; i >= 0; i-- {
+		err := transaction.Apply(changes[i])
+		if err != nil {
+			return custom_error.NewErrorf(err, "Failed to apply change '%v'.", changes[i].ID)
+		}
+	}
+	return nil
 }
 
 func (c *changeSetApplier) Process(changeSet *ChangeSet) (result custom_error.CustomError) {
@@ -48,11 +71,9 @@ func (c *changeSetApplier) Process(changeSet *ChangeSet) (result custom_error.Cu
 			return
 		}
 	}()
-	for i := range changeSet.Changes {
-		err := transaction.Apply(changeSet.Changes[i])
-		if err != nil {
-			panic(custom_error.NewErrorf(err, "Failed to apply change '%v'. Change #: %v", changeSet.ID, i+1))
-		}
+	err = c.strategy(changeSet.Changes, transaction)
+	if err != nil {
+		panic(custom_error.NewErrorf(err, "Failed to apply change-set '%v'.", changeSet.ID))
 	}
 	return nil
 	/*res := c.migrations.FindOne(context.Background(), bson.NewDocument(bson.EC.String("change_set_id", changeSet.ID)))
@@ -74,5 +95,13 @@ func (c *changeSetApplier) Process(changeSet *ChangeSet) (result custom_error.Cu
 func NewChangeSetApplier(startTransaction TransactionFactory) (ChangeSetProcessor, custom_error.CustomError) {
 	return &changeSetApplier{
 		startTransaction: startTransaction,
+		strategy:         forwardChangeSetApplierStrategy,
+	}, nil
+}
+
+func NewRollbackChangeSetApplier(startTransaction TransactionFactory) (ChangeSetProcessor, custom_error.CustomError) {
+	return &changeSetApplier{
+		startTransaction: startTransaction,
+		strategy:         backwardChangeSetApplierStrategy,
 	}, nil
 }

@@ -10,8 +10,8 @@ import (
 	mgo "github.com/mongodb/mongo-go-driver/mongo"
 )
 
-func Migrate(path string, limit int64, log logs.Logger) custom_error.CustomError {
-	changeLog, errValue := engine.NewChangeLog(path)
+func Rollback(path string, limit int64, log logs.Logger) custom_error.CustomError {
+	changeLog, errValue := engine.NewRollbackChangeLog(path)
 	if errValue != nil {
 		return custom_error.NewErrorf(errValue, "Failed to load changelog.")
 	}
@@ -68,22 +68,27 @@ func Migrate(path string, limit int64, log logs.Logger) custom_error.CustomError
 	}
 
 	documentApplier := mongo.NewDbChanger(db, context.Background())
-	transactionRecFactory := engine.NewTransactionRecordFactory(engine.COLLECTION_NAME_MIGRATIONS_LOG)
+	transactionRecFactory := engine.NewRollbackTransactionRecordFactory(engine.COLLECTION_NAME_MIGRATIONS_LOG)
 
-	transactionFactory, errValue := engine.NewSimulatedTransactionFactory(documentApplier, transactionRecFactory, appliedList, limit, log)
+	transactionFactory, errValue := engine.NewRollbackSimulatedTransactionFactory(documentApplier, transactionRecFactory, notAppliedList, limit, log)
 	if errValue != nil {
 		return custom_error.NewErrorf(errValue, "Failed to create transaction factory.")
 	}
 	if transactionFactory == nil {
 		return custom_error.MakeErrorf("Empty Transaction-factory created.")
 	}
-	applier, errValue := engine.NewChangeSetApplier(transactionFactory)
+	applier, errValue := engine.NewRollbackChangeSetApplier(transactionFactory)
 	if errValue != nil {
 		return custom_error.NewErrorf(errValue, "Failed to create migration applier.")
 	}
 	if applier == nil {
 		return custom_error.MakeErrorf("Empty Migration-applier created.")
 	}
+
+	/*notAppliedChangeLog, customErr := engine.NewArrayChangeLog(notAppliedList)
+	if customErr != nil {
+		return custom_error.NewErrorf(customErr, "Failed to create not-applied-change-log.")
+	}*/
 
 	errValue = changeLog.Apply(applier)
 	if errValue != nil {

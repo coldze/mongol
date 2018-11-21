@@ -147,12 +147,15 @@ type ChangeSet struct {
 	Changes []*Change
 }
 
+type ChangeSetApplyStrategy func(sets []*ChangeSet, processor ChangeSetProcessor) custom_error.CustomError
+
 type mainChangeLog struct {
-	workingDir     string          `json:"-"`
-	Connection     string          `json:"connection,omitempty"`
-	DbName         string          `json:"dbname,omitempty"`
-	MigrationFiles []MigrationFile `json:"migrations,omitempty"`
-	changeSets     []*ChangeSet    `json:"-"`
+	workingDir     string                 `json:"-"`
+	Connection     string                 `json:"connection,omitempty"`
+	DbName         string                 `json:"dbname,omitempty"`
+	MigrationFiles []MigrationFile        `json:"migrations,omitempty"`
+	changeSets     []*ChangeSet           `json:"-"`
+	strategy       ChangeSetApplyStrategy `json:"-"`
 }
 
 func loadChangeSet(path string, workingDir string) (*ChangeSet, custom_error.CustomError) {
@@ -224,10 +227,28 @@ func (c *mainChangeLog) GetChangeSetSource() ChangeSetSource {
 }
 
 func (c *mainChangeLog) Apply(processor ChangeSetProcessor) custom_error.CustomError {
-	for i := range c.changeSets {
-		err := processor.Process(c.changeSets[i])
+	err := c.strategy(c.changeSets, processor)
+	if err != nil {
+		return custom_error.NewErrorf(err, "Failed to apply changes.")
+	}
+	return nil
+}
+
+func forwardStrategy(sets []*ChangeSet, processor ChangeSetProcessor) custom_error.CustomError {
+	for i := range sets {
+		err := processor.Process(sets[i])
 		if err != nil {
-			return custom_error.NewErrorf(err, "Failed to process changeset '%v'", c.changeSets[i].ID)
+			return custom_error.NewErrorf(err, "Failed to process changeset '%v'", sets[i].ID)
+		}
+	}
+	return nil
+}
+
+func backwardStrategy(sets []*ChangeSet, processor ChangeSetProcessor) custom_error.CustomError {
+	for i := len(sets) - 1; i >= 0; i-- {
+		err := processor.Process(sets[i])
+		if err != nil {
+			return custom_error.NewErrorf(err, "Failed to process changeset '%v'", sets[i].ID)
 		}
 	}
 	return nil
@@ -244,6 +265,31 @@ func NewChangeLog(path string) (ChangeLog, custom_error.CustomError) {
 	}
 	changeLog := mainChangeLog{
 		workingDir: filepath.Dir(path),
+		strategy:   forwardStrategy,
+	}
+	err = json.Unmarshal(changeLogData, &changeLog)
+	if err != nil {
+		return nil, custom_error.MakeErrorf("Failed to unmarshal changelog. Error: %v", err)
+	}
+	errValue := changeLog.validate()
+	if errValue != nil {
+		return nil, custom_error.NewErrorf(errValue, "Changelog validation failed")
+	}
+	return &changeLog, nil
+}
+
+func NewRollbackChangeLog(path string) (ChangeLog, custom_error.CustomError) {
+	if len(path) <= 0 {
+		return nil, custom_error.MakeErrorf("Input changelog path is empty. Internal error.")
+	}
+
+	changeLogData, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, custom_error.MakeErrorf("Failed to open changelog file. Error: %v", err)
+	}
+	changeLog := mainChangeLog{
+		workingDir: filepath.Dir(path),
+		strategy:   backwardStrategy,
 	}
 	err = json.Unmarshal(changeLogData, &changeLog)
 	if err != nil {

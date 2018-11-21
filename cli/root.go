@@ -47,6 +47,7 @@ func NewCliApp(logger logs.Logger) App {
 	}
 
 	addMigrateCommand(rootCmd, logger)
+	addRollbackCommand(rootCmd, logger)
 
 	return &Cli{
 		rootCommand: rootCmd,
