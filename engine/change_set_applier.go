@@ -24,7 +24,7 @@ func (c *changeSetApplier) Process(changeSet *ChangeSet) (result custom_error.Cu
 	if changeSet == nil {
 		return custom_error.MakeErrorf("Failed to apply changeset. Nil pointer provided.")
 	}
-	transaction, err := c.startTransaction(changeSet.ID, changeSet.Hash)
+	transaction, err := c.startTransaction(changeSet.ID)
 	if err != nil {
 		return custom_error.NewErrorf(err, "Failed to start transaction")
 	}

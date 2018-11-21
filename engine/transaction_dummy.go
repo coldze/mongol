@@ -25,7 +25,7 @@ func (t *transactionDummy) Rollback() custom_error.CustomError {
 }
 
 func NewDummyTransactionFactory(log logs.Logger) TransactionFactory {
-	return func(changeID string, hashValue string) (Transaction, custom_error.CustomError) {
+	return func(changeID string) (Transaction, custom_error.CustomError) {
 		return &transactionDummy{
 			log: log,
 		}, nil

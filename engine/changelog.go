@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"hash"
 	"io/ioutil"
 	"path/filepath"
@@ -111,18 +112,22 @@ func (c *ChangeFile) validate() custom_error.CustomError {
 	return c.Backward.validate()
 }
 
-func NewChange(c *ChangeFile, workingDir string, changelogPath string, hash hash.Hash) (*Change, custom_error.CustomError) {
-	forward, err := NewMigration(&c.Forward, workingDir, changelogPath, hash)
+func NewChange(c *ChangeFile, workingDir string, changelogPath string, id string) (*Change, custom_error.CustomError) {
+	changeHash := md5.New()
+	forward, err := NewMigration(&c.Forward, workingDir, changelogPath, changeHash)
 	if err != nil {
 		return nil, custom_error.NewErrorf(err, "Failed to generate change. Forward migration generate process failed.")
 	}
-	backward, err := NewMigration(c.Backward, workingDir, changelogPath, hash)
+	backward, err := NewMigration(c.Backward, workingDir, changelogPath, changeHash)
 	if err != nil {
 		return nil, custom_error.NewErrorf(err, "Failed to generate change. Backward migration generate process failed.")
 	}
+	hashValue := hex.EncodeToString(changeHash.Sum(nil))
 	return &Change{
 		Backward: backward,
 		Forward:  forward,
+		Hash:     hashValue,
+		ID:       id,
 	}, nil
 }
 
@@ -133,11 +138,12 @@ type ChangeSetFile struct {
 type Change struct {
 	Forward  Migration
 	Backward Migration
+	Hash     string
+	ID       string
 }
 
 type ChangeSet struct {
 	ID      string
-	Hash    string
 	Changes []*Change
 }
 
@@ -159,10 +165,10 @@ func loadChangeSet(path string, workingDir string) (*ChangeSet, custom_error.Cus
 	if err != nil {
 		return nil, custom_error.MakeErrorf("Failed to unmarshal changeset. Error: %v", err)
 	}
-	changesetHash := md5.New()
 	changes := make([]*Change, 0, len(changeSetFile.Changes))
+	changeIDFormat := changeSetFile.ID + "_transaction_entry_%v"
 	for i := range changeSetFile.Changes {
-		change, errValue := NewChange(&changeSetFile.Changes[i], workingDir, filepath.Dir(path), changesetHash)
+		change, errValue := NewChange(&changeSetFile.Changes[i], workingDir, filepath.Dir(path), fmt.Sprintf(changeIDFormat, i))
 		if errValue != nil {
 			return nil, custom_error.NewErrorf(errValue, "Failed to validate changeset at path '%v'", path)
 		}
@@ -170,7 +176,6 @@ func loadChangeSet(path string, workingDir string) (*ChangeSet, custom_error.Cus
 	}
 	return &ChangeSet{
 		ID:      changeSetFile.ID,
-		Hash:    hex.EncodeToString(changesetHash.Sum(nil)),
 		Changes: changes,
 	}, nil
 }

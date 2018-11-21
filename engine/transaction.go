@@ -10,4 +10,4 @@ type Transaction interface {
 	Rollback() custom_error.CustomError
 }
 
-type TransactionFactory func(changeID string, hashValue string) (Transaction, custom_error.CustomError)
+type TransactionFactory func(changeID string) (Transaction, custom_error.CustomError)

@@ -23,19 +23,37 @@ func Migrate(path string, log logs.Logger) custom_error.CustomError {
 	defer mongoClient.Disconnect(ctx)
 	db := mongoClient.Database(changeLog.GetDBName())
 
-	notAppliedList := []*engine.ChangeSet{}
+	notAppliedList := map[string]struct{}{}
+	appliedList := map[string]struct{}{}
 
-	notAppliedProcessing := func(change *engine.ChangeSet) custom_error.CustomError {
-		notAppliedList = append(notAppliedList, change)
+	notAppliedProcessing := func(changeID string) custom_error.CustomError {
+		_, ok := notAppliedList[changeID]
+		if ok {
+			return custom_error.MakeErrorf("Dublicated change id: %v", changeID)
+		}
+		_, ok = appliedList[changeID]
+		if ok {
+			return custom_error.MakeErrorf("Dublicated change id: %v", changeID)
+		}
+		notAppliedList[changeID] = struct{}{}
 		return nil
 	}
 
-	appliedProcessing := func(change *engine.ChangeSet) custom_error.CustomError {
+	appliedProcessing := func(changeID string) custom_error.CustomError {
 		length := len(notAppliedList)
 		if length > 0 {
-			return custom_error.MakeErrorf("Applied change-set with ID %v after non-applied with ID %v", change.ID, notAppliedList[length-1].ID)
+			return custom_error.MakeErrorf("Applied changeSet-set with ID %v after not-applied changes", changeID)
 		}
-		log.Infof("Already applied change-set with ID: %v", change.ID)
+		log.Infof("Already applied change with ID: %v", changeID)
+		_, ok := notAppliedList[changeID]
+		if ok {
+			return custom_error.MakeErrorf("Dublicated change id: %v", changeID)
+		}
+		_, ok = appliedList[changeID]
+		if ok {
+			return custom_error.MakeErrorf("Dublicated change id: %v", changeID)
+		}
+		appliedList[changeID] = struct{}{}
 		return nil
 	}
 
@@ -52,7 +70,7 @@ func Migrate(path string, log logs.Logger) custom_error.CustomError {
 	documentApplier := mongo.NewDbChanger(db, context.Background())
 	transactionRecFactory := engine.NewTransactionRecordFactory(engine.COLLECTION_NAME_MIGRATIONS_LOG)
 
-	transactionFactory, errValue := engine.NewSimulatedTransactionFactory(documentApplier, transactionRecFactory, log)
+	transactionFactory, errValue := engine.NewSimulatedTransactionFactory(documentApplier, transactionRecFactory, appliedList, log)
 	if errValue != nil {
 		return custom_error.NewErrorf(errValue, "Failed to create transaction factory.")
 	}
@@ -67,12 +85,12 @@ func Migrate(path string, log logs.Logger) custom_error.CustomError {
 		return custom_error.MakeErrorf("Empty Migration-applier created.")
 	}
 
-	notAppliedChangeLog, customErr := engine.NewArrayChangeLog(notAppliedList)
+	/*notAppliedChangeLog, customErr := engine.NewArrayChangeLog(notAppliedList)
 	if customErr != nil {
 		return custom_error.NewErrorf(customErr, "Failed to create not-applied-change-log.")
-	}
+	}*/
 
-	errValue = notAppliedChangeLog.Apply(applier)
+	errValue = changeLog.Apply(applier)
 	if errValue != nil {
 		return custom_error.NewErrorf(errValue, "Failed to apply changes.")
 	}
