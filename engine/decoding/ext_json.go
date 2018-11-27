@@ -22,7 +22,11 @@ func DecodeMigration(data []byte) ([]interface{}, custom_error.CustomError) {
 	if err != nil {
 		return nil, custom_error.MakeErrorf("Failed to decode ext-json. Error: %v", err)
 	}
-	commands, ok := doc.Map()["cmds"]
+	mapped := doc.Map()
+	if len(mapped) <= 0 {
+		return nil, nil
+	}
+	commands, ok := mapped["cmds"]
 	if !ok {
 		return []interface{}{doc}, nil
 	}
