@@ -23,7 +23,6 @@ func (c *DbChanger) Apply(value interface{}) custom_error.CustomError {
 		return custom_error.MakeErrorf("Failed to apply change. Error: %v", res.Err())
 	}
 	return nil
-	return nil
 }
 
 func NewDbChanger(db *mgo.Database, context context.Context) engine.DocumentApplier {
