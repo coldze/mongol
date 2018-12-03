@@ -2,8 +2,6 @@ package decoding
 
 import (
 	"github.com/coldze/primitives/custom_error"
-	"github.com/mongodb/mongo-go-driver/bson/decimal"
-	"github.com/mongodb/mongo-go-driver/bson/objectid"
 	"github.com/mongodb/mongo-go-driver/bson/primitive"
 	"strconv"
 	"strings"
@@ -229,7 +227,7 @@ func parseDecimal128(in []byte) (interface{}, []byte, custom_error.CustomError) 
 	if strValue == nil || len(*strValue) <= 0 {
 		return nil, nil, custom_error.MakeErrorf("Failed to parse decimal128. No data")
 	}
-	decimalValue, errValue := decimal.ParseDecimal128(*strValue)
+	decimalValue, errValue := primitive.ParseDecimal128(*strValue)
 	if errValue != nil {
 		return nil, nil, custom_error.NewErrorf(custom_error.MakeError(errValue), "Failed to parse decimal128")
 	}
@@ -305,7 +303,7 @@ func parseObjectID(in []byte) (interface{}, []byte, custom_error.CustomError) {
 	if hexValue == nil {
 		return nil, nil, custom_error.MakeErrorf("Failed to parse ObjectID. Empty data.")
 	}
-	v, errValue := objectid.FromHex(*hexValue)
+	v, errValue := primitive.ObjectIDFromHex(*hexValue)
 	if errValue != nil {
 		return nil, nil, custom_error.NewErrorf(custom_error.MakeError(err), "Failed to parse ObjectID")
 	}
