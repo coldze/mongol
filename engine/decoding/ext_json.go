@@ -3,7 +3,7 @@ package decoding
 import (
 	"github.com/coldze/primitives/custom_error"
 	"github.com/mongodb/mongo-go-driver/bson"
-	"github.com/mongodb/mongo-go-driver/x/bsonx"
+	"github.com/mongodb/mongo-go-driver/bson/primitive"
 	"log"
 )
 
@@ -30,7 +30,7 @@ func DecodeMigration(data []byte) ([]interface{}, custom_error.CustomError) {
 	if !ok {
 		return []interface{}{doc}, nil
 	}
-	arr, ok := commands.(bsonx.Arr)
+	arr, ok := commands.(primitive.A)
 	if !ok {
 		log.Printf("Not an array")
 		return []interface{}{doc}, nil
