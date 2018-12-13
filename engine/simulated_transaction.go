@@ -114,6 +114,7 @@ type SimulatedTransaction struct {
 	rollbacks               []Migration
 	changeID                string
 	createTransactionRecord TransactionRecordFactory
+	newEncoder              EncoderFactory
 	getMigrationToApply     MigrationExtractor
 	getRollbackMigration    MigrationExtractor
 }
@@ -136,11 +137,21 @@ func (t *SimulatedTransaction) Apply(change *Change) custom_error.CustomError {
 
 	err := t.getMigrationToApply(change).Apply(t.dbChanger)
 	if err != nil {
-		return err
+		return custom_error.NewErrorf(err, "Failed to apply migration.")
+	}
+	rollbackMigration := t.getRollbackMigration(change)
+	encoder := t.newEncoder()
+	err = rollbackMigration.Apply(encoder)
+	if err != nil {
+		return custom_error.NewErrorf(err, "Failed to prepare rollback migration")
+	}
+	binRollback, err := encoder.Encode()
+	if err != nil {
+		return custom_error.NewErrorf(err, "Failed to encode rollback migration")
 	}
 
 	/*** Into Migration.Apply ***/
-	appliedMigrationRecord, err := t.createTransactionRecord(change.ID, change.Hash)
+	appliedMigrationRecord, err := t.createTransactionRecord(change.ID, change.Hash, binRollback)
 	if err != nil {
 		return custom_error.NewErrorf(err, "Failed to create transaction record. Change ID: %v. Hash: %v. Change ID: %v", t.changeID, change.Hash, change.ID)
 	}
@@ -150,7 +161,7 @@ func (t *SimulatedTransaction) Apply(change *Change) custom_error.CustomError {
 	}
 	/*** Into Migration.Apply ^^^^^ ***/
 
-	t.rollbacks = append(t.rollbacks, t.getRollbackMigration(change))
+	t.rollbacks = append(t.rollbacks, rollbackMigration)
 	return nil
 }
 
@@ -210,6 +221,7 @@ func NewSimulatedTransactionFactory(dbChanger DocumentApplier, transactionRecFac
 			dbChanger:               dbChanger,
 			rollbacks:               []Migration{},
 			createTransactionRecord: transactionRecFactory,
+			newEncoder:              NewBinEncoder,
 			getMigrationToApply:     getForwardMigration,
 			getRollbackMigration:    getBackwardMigration,
 		}
@@ -229,8 +241,10 @@ func NewRollbackSimulatedTransactionFactory(dbChanger DocumentApplier, transacti
 			dbChanger:               dbChanger,
 			rollbacks:               []Migration{},
 			createTransactionRecord: transactionRecFactory,
-			getMigrationToApply:     getBackwardMigration,
-			getRollbackMigration:    getForwardMigration,
+			newEncoder:              NewBinEncoder,
+
+			getMigrationToApply:  getBackwardMigration,
+			getRollbackMigration: getForwardMigration,
 		}
 		return transactionWrapper(simTransaction), nil
 	}, nil

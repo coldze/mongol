@@ -2,6 +2,8 @@ package engine
 
 import (
 	"github.com/coldze/primitives/custom_error"
+	"log"
+	"runtime/debug"
 )
 
 type changeSetApplierStrategy func(changes []*Change, transaction Transaction) custom_error.CustomError
@@ -58,6 +60,7 @@ func (c *changeSetApplier) Process(changeSet *ChangeSet) (result custom_error.Cu
 				return
 			}
 		}
+		log.Printf("Error occured. Rolling back. Error: %+v", result)
 		rollbackErr := transaction.Rollback()
 		if rollbackErr != nil {
 			result = custom_error.NewErrorf(rollbackErr, "Failed to rollback changeset with ID '%v' after error during application. Application error: %v", result)
@@ -67,13 +70,14 @@ func (c *changeSetApplier) Process(changeSet *ChangeSet) (result custom_error.Cu
 	defer func() {
 		r := recover()
 		if r != nil {
+			debug.PrintStack()
 			result = extractError(r, changeSet.ID)
 			return
 		}
 	}()
 	err = c.strategy(changeSet.Changes, transaction)
 	if err != nil {
-		panic(custom_error.NewErrorf(err, "Failed to apply change-set '%v'.", changeSet.ID))
+		return custom_error.NewErrorf(err, "Failed to apply change-set '%v'.", changeSet.ID)
 	}
 	return nil
 	/*res := c.migrations.FindOne(context.Background(), bson.NewDocument(bson.EC.String("change_set_id", changeSet.ID)))

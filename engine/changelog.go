@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hash"
 	"io/ioutil"
+	"log"
 	"path/filepath"
 
 	"github.com/coldze/mongol/engine/decoding"
@@ -73,6 +74,10 @@ func NewMigration(m *MigrationFile, workingDir string, changelogPath string, has
 	}, nil
 }
 
+func NewMigrationFromDB() (Migration, custom_error.CustomError) {
+	return nil, custom_error.MakeErrorf("Not implemented")
+}
+
 type DocumentApplier interface {
 	Apply(value interface{}) custom_error.CustomError
 }
@@ -96,8 +101,9 @@ type SimpleMigration struct {
 func (s *SimpleMigration) Apply(visitor DocumentApplier) custom_error.CustomError {
 	for i := range s.commands {
 		err := visitor.Apply(s.commands[i])
+		log.Printf("%+v, %T", s.commands[i], s.commands[i])
 		if err != nil {
-			return custom_error.NewErrorf(err, "Failed to apply command: %v", s.commands[i])
+			return custom_error.NewErrorf(err, "Failed to apply command: %+v. Type: %T", s.commands[i], s.commands[i])
 		}
 	}
 	return nil
