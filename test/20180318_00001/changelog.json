@@ -3,17 +3,21 @@
   "changes": [
     {
       "migration": {
-        "include": "00001_first_migration.bjson",
+        "include": "00001_first_migration.json",
         "relativeToChangelogFile": true
       },
       "rollback": {
-        "include": "00001_first_migration_rollback.bjson",
+        "include": "00001_first_migration_rollback.json",
         "relativeToChangelogFile": true
       }
     },
     {
       "migration": {
-        "include": "00002_second_migration.bjson",
+        "include": "00002_second_migration.json",
+        "relativeToChangelogFile": true
+      },
+      "rollback": {
+        "include": "00002_second_migration_rollback.json",
         "relativeToChangelogFile": true
       }
     }
