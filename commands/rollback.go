@@ -40,10 +40,6 @@ func Rollback(path string, limit int64, log logs.Logger) custom_error.CustomErro
 	}
 
 	appliedProcessing := func(changeID string) custom_error.CustomError {
-		length := len(notAppliedList)
-		if length > 0 {
-			return custom_error.MakeErrorf("Applied changeSet-set with ID %v after not-applied changes", changeID)
-		}
 		log.Infof("Already applied change with ID: %v", changeID)
 		_, ok := notAppliedList[changeID]
 		if ok {

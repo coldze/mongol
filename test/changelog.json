@@ -1,5 +1,5 @@
 {
-  "connection": "mongodb://localhost:27030/mongol",
+  "connection": "mongodb://localhost:27017/mongol",
   "dbname": "mongol",
   "migrations": [
     {
