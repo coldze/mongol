@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
 	"hash"
 	"io/ioutil"
 	"path/filepath"
@@ -138,10 +137,108 @@ type ChangeFile struct {
 }
 
 type changeFileInternal struct {
-	Forward     *MigrationFile   `json:"migration,omitempty"`
-	ForwardArr  []*MigrationFile `json:"migrations,omitempty"`
-	Backward    *MigrationFile   `json:"rollback,omitempty"`
-	BackwardArr []*MigrationFile `json:"rollbacks,omitempty"`
+	Forward  interface{} `json:"migration,omitempty"`
+	Backward interface{} `json:"rollback,omitempty"`
+}
+
+func collectMigrationFilesFromMap(mapVal map[string]interface{}) ([]*MigrationFile, custom_error.CustomError) {
+	if len(mapVal) > 2 {
+		return nil, custom_error.MakeErrorf("Extra fields specified. %+v", mapVal)
+	}
+	relative := true
+	relativeInterface, ok := mapVal["relativeToChangelogFile"]
+	if ok {
+		relative, ok = relativeInterface.(bool)
+		if !ok {
+			return nil, custom_error.MakeErrorf("Invalid format for `relativeToChangelogFile`. Type: %T", relativeInterface)
+		}
+	}
+
+	paths, ok := mapVal["include"]
+	if !ok {
+		return nil, custom_error.MakeErrorf("Missing `include` entry")
+	}
+	strPath, ok := paths.(string)
+	if ok {
+		return []*MigrationFile{
+			&MigrationFile{
+				Path:         strPath,
+				RelativePath: relative,
+			},
+		}, nil
+	}
+	pathArr, ok := paths.([]string)
+	if !ok {
+		return nil, custom_error.MakeErrorf("Unexpected type for `include` entry. Type: %T", paths)
+	}
+	migrations := make([]*MigrationFile, 0, len(pathArr))
+	for i := range pathArr {
+		migrations = append(migrations, &MigrationFile{
+			Path:         pathArr[i],
+			RelativePath: relative,
+		})
+	}
+	return migrations, nil
+}
+
+func collectMigrationFiles(in interface{}) ([]*MigrationFile, custom_error.CustomError) {
+	if in == nil {
+		return []*MigrationFile{}, nil
+	}
+	strVal, ok := in.(string)
+	if ok {
+		return []*MigrationFile{
+			&MigrationFile{
+				Path:         strVal,
+				RelativePath: true,
+			},
+		}, nil
+	}
+	strArrVal, ok := in.([]string)
+	if ok {
+		migrations := make([]*MigrationFile, 0, len(strArrVal))
+		for i := range strArrVal {
+			migrations = append(migrations, &MigrationFile{
+				Path:         strArrVal[i],
+				RelativePath: true,
+			})
+		}
+		return migrations, nil
+	}
+	mapVal, ok := in.(map[string]interface{})
+	if ok {
+		res, err := collectMigrationFilesFromMap(mapVal)
+		if err != nil {
+			return nil, custom_error.NewErrorf(err, "Failed to collect migration's description")
+		}
+		return res, nil
+	}
+
+	arrVal, ok := in.([]interface{})
+	if !ok {
+		return nil, custom_error.MakeErrorf("Unexpected type of migration description: %T", in)
+	}
+	migrations := make([]*MigrationFile, 0, len(arrVal))
+	for i := range arrVal {
+		strVal, ok := arrVal[i].(string)
+		if ok {
+			migrations = append(migrations, &MigrationFile{
+				Path:         strVal,
+				RelativePath: true,
+			})
+			continue
+		}
+		val, ok := arrVal[i].(map[string]interface{})
+		if !ok {
+			return nil, custom_error.MakeErrorf("Invalid format. Expected object. Type: %T", arrVal[i])
+		}
+		migration, err := collectMigrationFilesFromMap(val)
+		if err != nil {
+			return nil, custom_error.NewErrorf(err, "Failed to collect migration's description")
+		}
+		migrations = append(migrations, migration...)
+	}
+	return migrations, nil
 }
 
 func (c *ChangeFile) UnmarshalJSON(data []byte) error {
@@ -149,9 +246,23 @@ func (c *ChangeFile) UnmarshalJSON(data []byte) error {
 	changeInternal := changeFileInternal{}
 	err := json.Unmarshal(data, &changeInternal)
 	if err != nil {
-		return err
+		return custom_error.MakeErrorf("Failed to unmarshal change file. Error: %v", err)
 	}
-	isSingleForward := changeInternal.Forward != nil
+	forward, cErr := collectMigrationFiles(changeInternal.Forward)
+	if cErr != nil {
+		return custom_error.NewErrorf(cErr, "Failed to process migration's description (forward)")
+	}
+	backward, cErr := collectMigrationFiles(changeInternal.Forward)
+	if cErr != nil {
+		return custom_error.NewErrorf(cErr, "Failed to process migration's description (forward)")
+	}
+	if forward == nil || len(forward) <= 0 {
+		return custom_error.MakeErrorf("Empty forward migration")
+	}
+	c.Forward = forward
+	c.Backward = backward
+	return c.validate()
+	/*isSingleForward := changeInternal.Forward != nil
 	isMultipleForward := changeInternal.ForwardArr != nil
 	if !isSingleForward && (!isMultipleForward || len(changeInternal.ForwardArr) <= 0) {
 		return errors.New("Forward migration is empty")
@@ -176,7 +287,7 @@ func (c *ChangeFile) UnmarshalJSON(data []byte) error {
 	if isSingleBackward {
 		c.Backward = []*MigrationFile{changeInternal.Backward}
 	}
-	return c.validate()
+	return c.validate()*/
 }
 
 func validate(migrations []*MigrationFile) custom_error.CustomError {
