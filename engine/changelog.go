@@ -252,7 +252,7 @@ func (c *ChangeFile) UnmarshalJSON(data []byte) error {
 	if cErr != nil {
 		return custom_error.NewErrorf(cErr, "Failed to process migration's description (forward)")
 	}
-	backward, cErr := collectMigrationFiles(changeInternal.Forward)
+	backward, cErr := collectMigrationFiles(changeInternal.Backward)
 	if cErr != nil {
 		return custom_error.NewErrorf(cErr, "Failed to process migration's description (forward)")
 	}
@@ -356,9 +356,15 @@ type mainChangeLog struct {
 	workingDir     string                 `json:"-"`
 	Connection     string                 `json:"connection,omitempty"`
 	DbName         string                 `json:"dbname,omitempty"`
-	MigrationFiles []MigrationFile        `json:"migrations,omitempty"`
+	MigrationFiles []*MigrationFile       `json:"migrations,omitempty"`
 	changeSets     []*ChangeSet           `json:"-"`
 	strategy       ChangeSetApplyStrategy `json:"-"`
+}
+
+type mainChangeLogInternal struct {
+	Connection     string      `json:"connection,omitempty"`
+	DbName         string      `json:"dbname,omitempty"`
+	MigrationFiles interface{} `json:"migrations,omitempty"`
 }
 
 func loadChangeSet(path string, workingDir string) (*ChangeSet, custom_error.CustomError) {
@@ -386,6 +392,22 @@ func loadChangeSet(path string, workingDir string) (*ChangeSet, custom_error.Cus
 	}, nil
 }
 
+func (c *mainChangeLog) UnmarshalJSON(data []byte) error {
+	decoded := mainChangeLogInternal{}
+	err := json.Unmarshal(data, &decoded)
+	if err != nil {
+		return custom_error.MakeErrorf("Failed to unmarshal main-changelog. Error: %v", err)
+	}
+	c.DbName = decoded.DbName
+	c.Connection = decoded.Connection
+	var cErr custom_error.CustomError
+	c.MigrationFiles, cErr = collectMigrationFiles(decoded.MigrationFiles)
+	if cErr != nil {
+		return custom_error.NewErrorf(cErr, "Failed to collect migrations' description")
+	}
+	return nil
+}
+
 func (c *mainChangeLog) validate() custom_error.CustomError {
 	if len(c.Connection) <= 0 {
 		return custom_error.MakeErrorf("MainChangeLog format error: no connection string provided. Expected non-empty field 'connection'")
@@ -398,6 +420,9 @@ func (c *mainChangeLog) validate() custom_error.CustomError {
 	}
 	changeSets := make([]*ChangeSet, 0, len(c.MigrationFiles))
 	for i := range c.MigrationFiles {
+		if c.MigrationFiles[i] == nil {
+			return custom_error.MakeErrorf("Nil migration. Index: %v (zero-based)", i)
+		}
 		err := c.MigrationFiles[i].validate()
 		if err != nil {
 			return custom_error.NewErrorf(err, "MainChangeLog format error: migrationFile #%v", i+1)

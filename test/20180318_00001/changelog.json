@@ -2,10 +2,7 @@
   "id": "20180318_00001_00001",
   "changes": [
     {
-      "migration": {
-        "include": "00001_first_migration.json",
-        "relativeToChangelogFile": true
-      },
+      "migration": "00001_first_migration.json",
       "rollback": {
         "include": "00001_first_migration_rollback.json",
         "relativeToChangelogFile": true
@@ -13,13 +10,9 @@
     },
     {
       "migration": {
-        "include": "00002_second_migration.json",
-        "relativeToChangelogFile": true
+        "include": "00002_second_migration.json"
       },
-      "rollback": {
-        "include": "00002_second_migration_rollback.json",
-        "relativeToChangelogFile": true
-      }
+      "rollback": ["00002_second_migration_rollback.json"]
     }
   ]
 }

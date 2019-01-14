@@ -2,15 +2,7 @@
   "insert": "std4",
   "documents":[
     {
-      "name": "Test value 2",
-      "bsonType":"object",
-      "required":["name"],
-      "properties":{
-        "name":{
-          "bsonType":"string",
-          "description":"must be a string and is required"
-        }
-      }
+      "name": "Test value 2"
     }
   ]
 }
