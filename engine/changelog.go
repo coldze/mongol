@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/pkg/errors"
 	"hash"
 	"io/ioutil"
 	"path/filepath"
@@ -46,6 +47,20 @@ func getFullPath(relativePath bool, workingDir string, changelogPath string, fil
 		return filepath.Join(changelogPath, filePath)
 	}
 	return filepath.Join(workingDir, filePath)
+}
+
+func NewMultiMigration(m []*MigrationFile, workingDir string, changelogPath string, hash hash.Hash) (Migration, custom_error.CustomError) {
+	migrations := make([]Migration, 0, len(m))
+	for i := range m {
+		migration, err := NewMigration(m[i], workingDir, changelogPath, hash)
+		if err != nil {
+			return nil, custom_error.NewErrorf(err, "Failed to generate multi-migration")
+		}
+		migrations = append(migrations, migration)
+	}
+	return &MultipleMigration{
+		migrations: migrations,
+	}, nil
 }
 
 func NewMigration(m *MigrationFile, workingDir string, changelogPath string, hash hash.Hash) (Migration, custom_error.CustomError) {
@@ -103,29 +118,99 @@ func (s *SimpleMigration) Apply(visitor DocumentApplier) custom_error.CustomErro
 	return nil
 }
 
-type ChangeFile struct {
-	Forward  MigrationFile  `json:"migration"`
-	Backward *MigrationFile `json:"rollback,omitempty"`
+type MultipleMigration struct {
+	migrations []Migration
 }
 
-func (c *ChangeFile) validate() custom_error.CustomError {
-	err := c.Forward.validate()
+func (s *MultipleMigration) Apply(visitor DocumentApplier) custom_error.CustomError {
+	for i := range s.migrations {
+		err := visitor.Apply(s.migrations[i])
+		if err != nil {
+			return custom_error.NewErrorf(err, "Failed to apply single migration: %v", s.migrations[i])
+		}
+	}
+	return nil
+}
+
+type ChangeFile struct {
+	Forward  []*MigrationFile `json:"migration"`
+	Backward []*MigrationFile `json:"rollback,omitempty"`
+}
+
+type changeFileInternal struct {
+	Forward     *MigrationFile   `json:"migration,omitempty"`
+	ForwardArr  []*MigrationFile `json:"migrations,omitempty"`
+	Backward    *MigrationFile   `json:"rollback,omitempty"`
+	BackwardArr []*MigrationFile `json:"rollbacks,omitempty"`
+}
+
+func (c *ChangeFile) UnmarshalJSON(data []byte) error {
+	c.Backward = []*MigrationFile{}
+	changeInternal := changeFileInternal{}
+	err := json.Unmarshal(data, &changeInternal)
 	if err != nil {
 		return err
 	}
-	if c.Backward == nil {
-		return nil
+	isSingleForward := changeInternal.Forward != nil
+	isMultipleForward := changeInternal.ForwardArr != nil
+	if !isSingleForward && (!isMultipleForward || len(changeInternal.ForwardArr) <= 0) {
+		return errors.New("Forward migration is empty")
 	}
-	return c.Backward.validate()
+	if isSingleForward && isMultipleForward {
+		return errors.New("Both multiple and single migrations are not supported (forward)")
+	}
+	if isMultipleForward {
+		c.Forward = changeInternal.ForwardArr
+	}
+	if isSingleForward {
+		c.Forward = []*MigrationFile{changeInternal.Forward}
+	}
+	isSingleBackward := changeInternal.Backward != nil
+	isMultipleBackward := changeInternal.BackwardArr != nil
+	if isSingleBackward && isMultipleBackward {
+		return errors.New("Both multiple and single migrations are not supported (backward)")
+	}
+	if isMultipleBackward {
+		c.Backward = changeInternal.BackwardArr
+	}
+	if isSingleBackward {
+		c.Backward = []*MigrationFile{changeInternal.Backward}
+	}
+	return c.validate()
+}
+
+func validate(migrations []*MigrationFile) custom_error.CustomError {
+	for _, v := range migrations {
+		if v == nil {
+			return custom_error.MakeErrorf("Nil migration file")
+		}
+		err := v.validate()
+		if err != nil {
+			return custom_error.NewErrorf(err, "Migration is invalid")
+		}
+	}
+	return nil
+}
+
+func (c *ChangeFile) validate() custom_error.CustomError {
+	err := validate(c.Forward)
+	if err != nil {
+		return custom_error.NewErrorf(err, "Forward migration's validation failed")
+	}
+	err = validate(c.Backward)
+	if err != nil {
+		return custom_error.NewErrorf(err, "Backward migration's validation failed")
+	}
+	return nil
 }
 
 func NewChange(c *ChangeFile, workingDir string, changelogPath string, id string) (*Change, custom_error.CustomError) {
 	changeHash := md5.New()
-	forward, err := NewMigration(&c.Forward, workingDir, changelogPath, changeHash)
+	forward, err := NewMultiMigration(c.Forward, workingDir, changelogPath, changeHash)
 	if err != nil {
 		return nil, custom_error.NewErrorf(err, "Failed to generate change. Forward migration generate process failed.")
 	}
-	backward, err := NewMigration(c.Backward, workingDir, changelogPath, changeHash)
+	backward, err := NewMultiMigration(c.Backward, workingDir, changelogPath, changeHash)
 	if err != nil {
 		return nil, custom_error.NewErrorf(err, "Failed to generate change. Backward migration generate process failed.")
 	}
