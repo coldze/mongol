@@ -1,6 +1,6 @@
 {
-  "connection": "mongodb://localhost:27017/mongolx",
-  "dbname": "mongolx",
+  "connection": "mongodb://localhost:27017/mongol",
+  "dbname": "mongol",
   "migrations": [
     {
       "include": "20180318_00001/changelog.json",
