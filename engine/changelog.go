@@ -124,7 +124,7 @@ type MultipleMigration struct {
 
 func (s *MultipleMigration) Apply(visitor DocumentApplier) custom_error.CustomError {
 	for i := range s.migrations {
-		err := visitor.Apply(s.migrations[i])
+		err := s.migrations[i].Apply(visitor)
 		if err != nil {
 			return custom_error.NewErrorf(err, "Failed to apply single migration: %v", s.migrations[i])
 		}
