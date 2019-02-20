@@ -7,7 +7,6 @@ import (
 	"github.com/coldze/mongol/primitives/mongo"
 	"github.com/coldze/primitives/custom_error"
 	"github.com/coldze/primitives/logs"
-	mgo "github.com/mongodb/mongo-go-driver/mongo"
 )
 
 func Rollback(path string, limit int64, log logs.Logger) custom_error.CustomError {
@@ -16,9 +15,9 @@ func Rollback(path string, limit int64, log logs.Logger) custom_error.CustomErro
 		return custom_error.NewErrorf(errValue, "Failed to load changelog.")
 	}
 	ctx := context.Background()
-	mongoClient, err := mgo.Connect(ctx, changeLog.GetConnectionString(), nil)
+	mongoClient, err := newMgoClient(ctx, changeLog.GetConnectionString())
 	if err != nil {
-		return custom_error.MakeErrorf("Failed to connect to mongo. Error: %v", err)
+		return custom_error.NewErrorf(err, "Failed to connect to mongo.")
 	}
 	defer mongoClient.Disconnect(ctx)
 	db := mongoClient.Database(changeLog.GetDBName())
