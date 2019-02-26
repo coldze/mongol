@@ -5,7 +5,7 @@ import (
 
 	"github.com/coldze/mongol/engine"
 	"github.com/coldze/primitives/custom_error"
-	mgo "github.com/mongodb/mongo-go-driver/mongo"
+	mgo "go.mongodb.org/mongo-driver/mongo"
 )
 
 type DbChanger struct {

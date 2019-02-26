@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/coldze/primitives/custom_error"
-	mgo "github.com/mongodb/mongo-go-driver/mongo"
-	"github.com/mongodb/mongo-go-driver/mongo/options"
+	mgo "go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func newMgoClient(ctx context.Context, uri string) (*mgo.Client, custom_error.CustomError) {
